@@ -1,0 +1,156 @@
+###############################################################################
+# 基本方針
+# - リポジトリ内はLFに統一（CI・Linux・Macと整合）
+# - Windows固有ファイルのみCRLF
+###############################################################################
+
+* text=auto
+
+###############################################################################
+# 改行コードの明示（重要）
+###############################################################################
+
+# 文字コードが混在する恐れのあるファイル群を保護
+*.c     -text
+*.h     -text
+*.cpp   -text
+*.hpp   -text
+
+# ソースコード・設定ファイルはLF固定
+*.cc     text eol=lf
+
+*.py     text eol=lf
+*.js     text eol=lf
+*.ts     text eol=lf
+*.jsx    text eol=lf
+*.tsx    text eol=lf
+
+*.json   text eol=lf
+*.code-workspace text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.toml   text eol=lf
+*.ini    text eol=lf
+
+*.md     text eol=lf
+*.markdown text eol=lf
+*.mdx    text eol=lf
+*.txt    text eol=lf
+
+# シェルスクリプト（CRLF混入防止）
+*.sh     text eol=lf
+
+# Windows専用スクリプトはCRLF
+*.bat    text eol=crlf
+*.cmd    text eol=crlf
+*.ps1    text eol=crlf
+
+###############################################################################
+# 拡張子なし / dotfile
+###############################################################################
+
+.gitattributes                 text eol=lf
+.gitignore                     text eol=lf
+.gitmodules                    text eol=lf
+
+git-setup/COMMIT_TEMPLATE      text eol=lf
+git-setup/hooks/*              text eol=lf
+
+# よくある拡張子なしファイル
+Makefile                       text eol=lf
+Dockerfile                     text eol=lf
+LICENSE                        text eol=lf
+README                         text eol=lf
+
+###############################################################################
+# lock ファイル（LF固定）
+###############################################################################
+
+uv.lock             text eol=lf
+poetry.lock         text eol=lf
+Pipfile.lock        text eol=lf
+
+yarn.lock           text eol=lf
+package-lock.json   text eol=lf
+
+###############################################################################
+# バイナリ（変換・差分対象外）
+# diffノイズ抑制（レビュー効率）
+###############################################################################
+
+# 画像
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.bmp binary
+*.tiff binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.avif binary
+
+# テキストベース画像
+*.svg text eol=lf
+
+# 実行ファイル
+*.exe binary
+*.dll binary
+
+# 圧縮ファイル
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
+
+# Office / PDF
+*.xlsx binary
+*.xls binary
+*.docx binary
+*.doc binary
+*.pptx binary
+*.ppt binary
+*.pdf binary
+
+# メディア
+*.mp3 binary
+*.mp4 binary
+*.mov binary
+
+###############################################################################
+# マージ戦略（コンフリクト回避）
+# ※ チームルールとセットで運用すること
+###############################################################################
+
+# 必要な変更を切り捨ててしまう可能性を排除する。
+# merge=oursを誤って指定しないよう、以下明示的に無効化しておく。
+# Node系
+package-lock.json -merge
+yarn.lock         -merge
+
+# Python系
+poetry.lock       -merge
+Pipfile.lock      -merge
+uv.lock           -merge
+
+###############################################################################
+# 生成物（差分・言語統計から除外）
+###############################################################################
+
+dist/**   linguist-generated
+build/**  linguist-generated
+out/**    linguist-generated
+
+###############################################################################
+# ドキュメント扱い
+###############################################################################
+
+*.md linguist-documentation
+*.markdown linguist-documentation
+*.mdx linguist-documentation
+
+###############################################################################
+# バイナリ扱いの明示（念のため）
+###############################################################################
+
+*.bin binary
+*.dat binary

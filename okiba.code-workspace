@@ -1,0 +1,143 @@
+{
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+	"settings": {
+		// ミニマップを非表示にする
+		"editor.minimap.enabled": false,
+		// カラーカスタマイズ
+		"workbench.colorCustomizations": {
+			"activityBar.background": "#e2df16b4",
+			"activityBar.foreground": "#06065df5",
+		},
+
+		// フォント設定
+		"editor.fontFamily": "Consolas, 'Cascadia Mono', 'SF Mono', Menlo, Monaco, 'Courier New', monospace",
+
+		// Copilot のコード提案は無効化しつつ、通常のサジェストは利用する
+		"github.copilot.enable": {
+			"*": false
+		},
+		"editor.suggestOnTriggerCharacters": true,
+		"editor.wordBasedSuggestions": "matchingDocuments",
+		"editor.inlineSuggest.enabled": false,
+		"editor.quickSuggestions": {
+			"other": true,
+			"comments": false,
+			"strings": false
+		},
+
+		// 編集時の見通しを良くする
+		"editor.rulers": [120],
+		"editor.tabSize": 4,
+		"editor.matchBrackets": "always",
+		"editor.bracketPairColorization.enabled": true,
+		"editor.guides.bracketPairs": true,
+		"editor.guides.highlightActiveBracketPair": true,
+		"editor.guides.indentation": true,
+		"editor.guides.highlightActiveIndentation": true,
+		"editor.stickyScroll.enabled": true,
+		"editor.showFoldingControls": "always",
+		"editor.wordSeparators": "./\\()\"'-:,.;<>~!@# ○$%^&*|+=[]{}`~?．。，、（）「」［］｛｝《》『』【】てにをはがのともへでや",
+
+		// skill settings
+		"[skill]": {
+			"files.encoding": "utf8",
+			"editor.insertSpaces": true,
+			"editor.tabSize": 2,
+			"editor.autoIndent": "advanced",
+			"editor.unicodeHighlight.ambiguousCharacters": true,
+			"editor.unicodeHighlight.invisibleCharacters": true,
+			"diffEditor.ignoreTrimWhitespace": false,
+			"editor.wordWrap": "on",
+			"editor.quickSuggestions": {
+				"comments": "off",
+				"strings": "on",
+				"other": "on"
+			},
+			"editor.wordBasedSuggestions": "off"
+		},
+		// context: forkを利用できるようにしておく
+		"github.copilot.chat.skillTool.enabled": true,
+		// 手動で圧縮するため自動圧縮を無効にしておく
+		"github.copilot.chat.summarizeAgentConversationHistory.enabled":false,
+
+
+		// git settings
+		"files.exclude": {
+			// "**/.git": false,  // デフォルトでtrue
+			"**/git-setup": true,
+		},
+		// VSCode標準のGit blame(行末に表示される最終コミット情報)を無効化
+		"git.blame.editorDecoration.enabled": false,
+		// GitLensのCurrent Line Blame(カーソル行に表示される履歴情報)を無効化
+		"gitlens.currentLine.enabled": false,
+		// コミットメッセージのinstructions
+		"github.copilot.chat.commitMessageGeneration.instructions": [
+			{
+				"file": "git-setup/COMMIT_TEMPLATE"
+			},
+			{
+				"text": "必ず日本語で。丁寧語は不要。体言止めで。何を変更したかを先に書き、続けて変更目的が分かるようにする。同じ説明を繰り返さない。"
+			}
+		],
+		
+		"chat.tools.terminal.autoApprove": {
+			// ReadOnly系コマンドは許可する
+			"/^Get-ChildItem\\b/i": true,
+			// Python用許可設定
+			"/^uv run ruff\\b/i": true,
+			"/^uv run mypy\\b/i": true,
+			"/^uv run pyright\\b/i": true,
+			"/^uv run pytest\\b/i": true,
+		},
+
+		// markdown settings
+		"markdown.updateLinksOnFileMove.enabled": "always",
+		"markdown.validate.enabled": true,
+		"markdown.suggest.paths.enabled": true,
+		"markdown.preview.scrollPreviewWithEditor": false,
+		"markdown.preview.scrollEditorWithPreview": false,
+		"markdown.copyFiles.destination": {
+			"**/*": "img/"		// 画像コピペ時の保存先指定
+		},
+		"[markdown]": {
+			"editor.wordWrap":"on",
+			"editor.snippetSuggestions": "top",
+			// 共通化するとmarkdownでサジェスト効かなくなるので明示必須
+			"editor.quickSuggestions": {
+				"other": true,
+				"comments": false,
+				"strings": false
+			},
+			"editor.scrollBeyondLastLine": false,
+			"files.trimTrailingWhitespace": false,
+			"files.insertFinalNewline": true,
+			"editor.padding.bottom": 250,
+			"editor.codeActionsOnSave": {
+				"source.fixAll.markdownlint": "explicit"
+			}
+		},
+
+		// Markdown Preview Enhanced
+		"markdown-preview-enhanced.breakOnSingleNewLine": false,
+		"markdown-preview-enhanced.scrollSync": false,
+		// PlantUML 描画用 jar。拡張機能に依存させず、公式取得の jar を固定パスへ配置する。
+		// 入手・配置手順は sample/intro_temp_markdown.md の PlantUML 節を参照。
+		"markdown-preview-enhanced.plantumlJarPath": "C:/Users/${env:USERNAME}/tools/plantuml/plantuml.jar",
+		// 自動でプレビュー表示するときに利用する
+		// "markdown-preview-enhanced.automaticallyShowPreviewOfMarkdownBeingEdited": true,
+
+		// Python settings
+		"[python]": {
+			"editor.defaultFormatter": "charliermarsh.ruff",
+			"editor.formatOnSave": true,
+			"editor.codeActionsOnSave": {
+				"source.fixAll": "explicit",
+			},
+		},
+		"autoDocstring.docstringFormat": "google",
+	}
+}

@@ -1,0 +1,58 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+      time: "17:30"
+      timezone: "Asia/Tokyo"
+    cooldown: 
+      default-days: 7
+    open-pull-requests-limit: 10
+    assignees:
+      - "in0ho1no"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "github-actions"
+      include: "scope"
+    target-branch: "develop"
+
+  - package-ecosystem: "docker"
+    directory: "/docker/semgrep"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+      time: "17:30"
+      timezone: "Asia/Tokyo"
+    cooldown: 
+      default-days: 7
+    open-pull-requests-limit: 10
+    assignees:
+      - "in0ho1no"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "semgrep"
+      include: "scope"
+    target-branch: "develop"
+
+  - package-ecosystem: "docker"
+    directory: "/docker/gitleaks"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+      time: "17:30"
+      timezone: "Asia/Tokyo"
+    cooldown: 
+      default-days: 7
+    open-pull-requests-limit: 10
+    assignees:
+      - "in0ho1no"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "gitleaks"
+      include: "scope"
+    target-branch: "develop"

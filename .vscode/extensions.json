@@ -1,0 +1,20 @@
+{
+    "recommendations": [
+        // git環境の推奨
+        "mhutchie.git-graph",  // gitの履歴をグラフで確認できる
+        "eamodio.gitlens",  // blame、差分参照、履歴追跡を強化する
+
+        // Markdown環境の推奨
+        "shd101wyy.markdown-preview-enhanced",  // HTML出力、目次更新、PlantUML / Mermaidなどのプレビュー
+        "davidanson.vscode-markdownlint",  // Markdownの書式ゆれや記法ミスを検出するlinter
+        "takumii.markdowntable",  // Markdownテーブルを整形しやすくする
+        "hediet.vscode-drawio",  // draw.io図をVSCode上で編集可能にする
+        
+        // Python環境の推奨
+        "njpwerner.autodocstring",  // docstring
+        "ms-python.mypy-type-checker",  // Python型チェック
+        "ms-python.python",  // Python環境
+        "ms-python.debugpy",  // Pythonデバッグ用
+        "charliermarsh.ruff",  // Python lint formatter用
+    ]
+}

@@ -1,0 +1,32 @@
+{
+  // markdownlint(davidanson.vscode-markdownlint) を調整する設定。
+  // 既定ルールの一覧: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+  // 既定では全ルール有効。ここでは環境特有の事情で誤検知になるものだけを緩める。
+
+  // MD009(行末スペース): 本テンプレートでは行末スペースを意図的に残す運用のため無効化する。
+  // 既定と同じ。2個は改行として残す／1個・3個以上は対象
+  "MD009": { "br_spaces": 2 },
+
+  // MD013(行長): 日本語の本文は1行が長くなりやすく、80字制限は実用的でない。
+  // 行幅は editor.rulers=120 で目視運用するため、lint では無効化する。
+  "MD013": false,
+
+  // MD024(見出し重複禁止): 親が異なれば同名見出しを許可する。
+  // 章ごとに「概要」「手順」等を繰り返すテンプレート用途で誤検知を避ける。
+  "MD024": {
+    "siblings_only": true
+  },
+
+  // MD033(インラインHTML禁止): 原則 :::note 等の記法を使うため生HTMLは避けるが、
+  // <br> : 表セル内で改行を使うことがあるので、その要素だけ許可する。
+  // <a> : 見出しのIDアンカー(rules/markdown_anchor_rules.md 参照)用に許可する。
+  // 他に常用したい要素が出てきたら配列に追記する(例: "sub", "sup")。
+  "MD033": {
+    "allowed_elements": ["br", "a"]
+  },
+
+  // MD051(リンク断片の整合): 目次は Markdown Preview Enhanced が独自規則で
+  // アンカー(#見出し)を自動生成する。markdownlint の算出方式と日本語見出しで
+  // ずれて誤検知するため、自動生成TOCとの衝突を避けて無効化する。
+  "MD051": false
+}

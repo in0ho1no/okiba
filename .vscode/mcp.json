@@ -1,0 +1,18 @@
+{
+    // MCP(Model Context Protocol)を利用しない場合は本ファイルごと削除すること。
+    // 参考:
+    // - https://docs.github.com/ja/copilot/how-tos/provide-context/use-mcp-in-your-ide
+    // - https://docs.github.com/ja/copilot/how-tos/provide-context/use-mcp-in-your-ide/set-up-the-github-mcp-server
+    // 利用したい場合は以下コメントアウトを外すこと。
+
+//    "servers": {
+//        // GitHub MCP サーバの例。custom agent 側では `github/*` として参照できる。
+//        // リモートサーバを利用する最小構成で、Issue/PR/Repository 関連ツールを Agent から扱える。
+//        // 必要に応じて toolset の絞り込みも検討すること。
+//        "github": {
+//            "url": "https://api.githubcopilot.com/mcp/",
+//            "type": "http"
+//        }
+//    },
+//    "inputs": []
+}

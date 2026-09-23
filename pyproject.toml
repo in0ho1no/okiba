@@ -1,0 +1,138 @@
+[project]
+name = "XXXX"
+version = "0.1.0"  # Major.Minor.Patch
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.20.1",
+    "pyright[nodejs]>=1.1.409",
+    "pytest>=9.0.3",
+    "ruff>=0.15.11",
+]
+
+[tool.ruff]
+# 1行の最大文字数
+line-length = 150
+# 対応するPythonバージョンを指定し、バージョンに応じたLint/Formatを可能にする
+target-version = "py312"
+# Lint/Formatの対象から除外するファイル/ディレクトリ
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "__pypackages__",
+    "_build",
+    "build",
+    "dist",
+    "node_modules",
+]
+
+[tool.ruff.lint]
+# 有効にするルールセットの選択
+select = [
+    "E",    # pycodestyle のエラー (例: E501 行が長すぎる)
+    "W",    # pycodestyle の警告 (例: W292 ファイル末尾に改行がない)
+    "F",    # Pyflakes のエラー (例: F841 未使用のローカル変数)
+    "I",    # isort (import文のソートとグループ化)
+    "B",    # flake8-bugbear (潜在的なバグや設計上の問題を発見)
+    "C4",   # flake8-comprehensions (内包表記の効率化やスタイル統一を推奨)
+    "TID",  # flake8-tidy-imports (import文のスタイルを改善、例えば相対importの制限など)
+    "SIM",  # flake8-simplify (コードの冗長なパターンを検出し、よりシンプルな形にリファクタリング提案)
+    "PT",   # flake8-pytest-style (pytestのテストコードスタイルをチェック、pytest使用時のみ有効)
+    "UP",   # pyupgrade (古いPython構文を新しい推奨構文に自動更新)
+    "N",    # pep8-naming (Pythonの命名規則 PEP8 に準拠しているかチェック)
+    "D",    # pydocstyle (docstringの規約チェック、スタイルは [tool.ruff.lint.pydocstyle] で設定)
+    "RUF",  # Ruff固有のルール (Ruff独自の便利なチェック)
+]
+
+# プロジェクト全体で無視するエラーコード
+ignore = [
+    # "F401",  # 未使用importはエラー扱いとしない
+    
+    # 日本語コメント・docstring・文字列中の全角記号（（）：など）を許容する
+    # RUF001 / RUF002 / RUF003 は「見た目が似た別文字の誤混入」を検知するルールだが、
+    # 日本語記述では全角記号の使用が自然であるため無効化する
+    "RUF001",  # 文字列リテラル
+    "RUF002",  # docstring
+    "RUF003",  # コメント
+    # D415 は英語前提の docstring スタイルが強く、日本語 docstring と相性が悪い
+    "D415",
+]
+
+# ファイル単位で無視するエラーコード
+[tool.ruff.lint.per-file-ignores]
+# __init__.py ファイルでは、F401 (未使用import) エラーを無視する
+# (APIの公開などでimportのみ行い、ファイル内で使用しない場合があるため)
+"__init__.py" = ["F401"]
+# テストコードではクラス/メソッドごとの docstring を必須にしない
+"src/tests/**/*.py" = ["D101", "D102", "D103", "D415"]
+# docs/source/conf.py ファイルでは、E402 (モジュールレベルのimportがファイルの先頭にない) エラーを無視する
+# (sys.pathの変更後にimportを行う場合など)
+"docs/source/conf.py" = ["E402"]
+
+[tool.ruff.lint.pydocstyle]
+# docstringの規約としてGoogleスタイルを採用
+convention = "google"
+
+[tool.ruff.format]
+# 文字列リテラルの引用符のスタイル（シングルクォートを優先）
+quote-style = "single"
+# インデントのスタイル（スペースを使用）
+indent-style = "space"
+# 可能な箇所では末尾カンマを付与・維持する
+skip-magic-trailing-comma = false
+# 改行コードのスタイル（OSや既存のファイルに合わせて自動判別）
+line-ending = "auto"
+
+[tool.mypy]
+# Any型を返す関数の戻り値に対して警告する
+warn_return_any = true
+# 型ヒントが付与されていない関数定義をエラーとする
+disallow_untyped_defs = true
+# Optional型として明示されていない変数へのNoneの代入をエラーとする
+no_implicit_optional = true
+# 型情報が提供されていないサードパーティライブラリのimportエラーを無視する
+ignore_missing_imports = true
+# Mypyの型チェック対象から除外するファイル/ディレクトリのパターン (正規表現)
+exclude = [
+    "docs/source/conf\\.py$", # . はエスケープ
+]
+
+[tool.pyright]
+# 型チェックの対象ディレクトリ
+include = ["src"]
+# 既存の除外ルールと同期
+exclude = [
+    "**/.*",
+    "**/__pycache__",
+    "**/.git",
+    "**/.mypy_cache",
+    "**/.ruff_cache",
+    "**/.venv",
+    "**/venv",
+    "**/__pypackages__",
+    "**/_build",
+    "**/build",
+    "**/dist",
+    "**/node_modules",
+    "docs/source/conf.py",
+]
+pythonVersion = "3.12"
+pythonPlatform = "All"
+typeCheckingMode = "standard"
+reportMissingTypeStubs = false
+reportUnnecessaryTypeIgnoreComment = true
+reportUnnecessaryIsInstance = true
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["src/tests"]

@@ -1,0 +1,156 @@
+{
+    "Front Matter": {
+        "scope": "markdown",
+        "prefix": "mdfront",
+        "body": [
+            "---",
+            "html:",
+            "  embed_local_images: true",
+            "  embed_svg: true",
+            "  offline: true",
+            "  toc: true",
+            "export_on_save:",
+            "  html: true",
+            "---",
+            "",
+            "# ${1:title}"
+        ],
+        "description": "Insert Markdown Preview Enhanced front matter"
+    },
+    "Admonition Tip": {
+        "scope": "markdown",
+        "prefix": "mdtip",
+        "body": [
+            ":::tip",
+            "${1:message}",
+            ":::"
+        ],
+        "description": "Insert a tip admonition block"
+    },
+    "Admonition Note": {
+        "scope": "markdown",
+        "prefix": "mdnote",
+        "body": [
+            ":::note",
+            "${1:message}",
+            ":::"
+        ],
+        "description": "Insert a note admonition block"
+    },
+    "Admonition Info": {
+        "scope": "markdown",
+        "prefix": "mdinfo",
+        "body": [
+            ":::info",
+            "${1:message}",
+            ":::"
+        ],
+        "description": "Insert an info admonition block"
+    },
+    "Source Block": {
+        "scope": "markdown",
+        "prefix": "mdsource",
+        "body": [
+            ":::source",
+            "出典: ${1:title}",
+            "${2:https://example.com}",
+            ":::"
+        ],
+        "description": "Insert a source block"
+    },
+    "Admonition Warning": {
+        "scope": "markdown",
+        "prefix": "mdwarn",
+        "body": [
+            ":::warning",
+            "${1:message}",
+            ":::"
+        ],
+        "description": "Insert a warning admonition block"
+    },
+    "Admonition Caution": {
+        "scope": "markdown",
+        "prefix": "mdcaution",
+        "body": [
+            ":::caution",
+            "${1:message}",
+            ":::"
+        ],
+        "description": "Insert a caution admonition block"
+    },
+    "Code Sample Block": {
+        "scope": "markdown",
+        "prefix": "mdsample",
+        "body": [
+            ":::sample",
+            "${1:command or code}",
+            ":::"
+        ],
+        "description": "Insert a sample block"
+    },
+    "Code Result Block": {
+        "scope": "markdown",
+        "prefix": "mdresult",
+        "body": [
+            ":::result",
+            "${1:output}",
+            ":::"
+        ],
+        "description": "Insert a result block"
+    },
+    "Markdown Table": {
+        "scope": "markdown",
+        "prefix": "mdtable",
+        "body": [
+            "| ${1:Column 1} | ${2:Column 2} |",
+            "| --- | --- |",
+            "| ${3:Value 1} | ${4:Value 2} |"
+        ],
+        "description": "Insert a basic Markdown table"
+    },
+    "Image": {
+        "scope": "markdown",
+        "prefix": "mdimg",
+        "body": [
+            "![${1:alt}](./img/${2:file.png})"
+        ],
+        "description": "Insert an image reference to the img folder"
+    },
+    "PlantUML": {
+        "scope": "markdown",
+        "prefix": "mdpuml",
+        "body": [
+            "```plantuml",
+            "@startuml",
+            "${1:A -> B: message}",
+            "@enduml",
+            "```"
+        ],
+        "description": "Insert a PlantUML code block"
+    },
+    "Mermaid Flowchart": {
+        "scope": "markdown",
+        "prefix": "mdmermaid",
+        "body": [
+            "```mermaid",
+            "flowchart TD",
+            "    ${1:Start}[開始] --> ${2:End}[完了]",
+            "```"
+        ],
+        "description": "Insert a Mermaid flowchart block"
+    },
+    "Mermaid Sequence": {
+        "scope": "markdown",
+        "prefix": "mdseq",
+        "body": [
+            "```mermaid",
+            "sequenceDiagram",
+            "    participant ${1:User}",
+            "    participant ${2:System}",
+            "    ${1:User}->>${2:System}: ${3:request}",
+            "    ${2:System}-->>${1:User}: ${4:response}",
+            "```"
+        ],
+        "description": "Insert a Mermaid sequence diagram block"
+    }
+}

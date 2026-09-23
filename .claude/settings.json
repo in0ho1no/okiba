@@ -1,0 +1,95 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/id_rsa*)",
+      "Read(**/id_ed25519*)",
+      "Read(**/credentials*)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.gnupg/**)",
+      "Edit(**/.env)",
+      "Edit(**/.env.*)",
+      "Edit(**/*.pem)",
+      "Edit(**/*.key)",
+      "Edit(**/id_rsa*)",
+      "Edit(**/id_ed25519*)",
+      "Edit(**/credentials*)",
+      "Edit(~/.ssh/**)",
+      "Edit(~/.aws/**)",
+      "Edit(~/.gnupg/**)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)",
+      "Bash(rm -rf $HOME*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(git reset --hard*)",
+      "Bash(git filter-branch*)",
+      "Bash(git filter-repo*)",
+      "PowerShell(Remove-Item *-Recurse* -Force*)",
+      "PowerShell(Remove-Item *-Force* -Recurse*)",
+      "PowerShell(del /s /q *)",
+      "PowerShell(del /q /s *)",
+      "PowerShell(rmdir /s /q *)",
+      "PowerShell(rmdir /q /s *)",
+      "PowerShell(git push --force*)",
+      "PowerShell(git push -f *)",
+      "PowerShell(git reset --hard*)",
+      "PowerShell(git filter-branch*)",
+      "PowerShell(git filter-repo*)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git tag -d *)",
+      "Bash(git branch -D *)",
+      "Bash(npm publish*)",
+      "Bash(npm install *)",
+      "Bash(pip install *)",
+      "Bash(uv add *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "PowerShell(git push *)",
+      "PowerShell(git tag -d *)",
+      "PowerShell(git branch -D *)",
+      "PowerShell(npm publish*)",
+      "PowerShell(npm install *)",
+      "PowerShell(pip install *)",
+      "PowerShell(uv add *)",
+      "PowerShell(curl *)",
+      "PowerShell(wget *)",
+      "PowerShell(Invoke-WebRequest *)",
+      "PowerShell(Invoke-RestMethod *)",
+      "PowerShell(iwr *)",
+      "PowerShell(irm *)",
+      "WebFetch"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Shell|Read|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/entrypoint.py\" pre"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Shell|Read|WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/entrypoint.py\" post"
+          }
+        ]
+      }
+    ]
+  }
+}

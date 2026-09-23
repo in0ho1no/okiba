@@ -1,0 +1,110 @@
+name: Auto Merge Security Tool Updates
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-merge-security-tool-updates-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  enable-auto-merge:
+    if: github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check eligibility
+        id: eligibility
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_ACTOR: ${{ github.actor }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          IS_DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          set -euo pipefail
+
+          if [ "$PR_ACTOR" != "dependabot[bot]" ] || [ "$PR_AUTHOR" != "dependabot[bot]" ]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "reason=not-dependabot" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$HEAD_REPO" != "$REPOSITORY" ]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "reason=unexpected-head-repo" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$IS_DRAFT" = "true" ]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "reason=draft-pr" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          mapfile -t changed_files < <(
+            gh api \
+              --paginate \
+              -H "Accept: application/vnd.github+json" \
+              "repos/$REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+              --jq '.[].filename'
+          )
+
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "reason=no-files" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          allowed_count=0
+          for path in "${changed_files[@]}"; do
+            case "$path" in
+              docker/semgrep/Dockerfile|docker/gitleaks/Dockerfile)
+                allowed_count=$((allowed_count + 1))
+                ;;
+              *)
+                echo "eligible=false" >> "$GITHUB_OUTPUT"
+                echo "reason=unexpected-file:$path" >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+            esac
+          done
+
+          if [ "$allowed_count" -lt 1 ]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "reason=no-allowed-files" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+          echo "reason=semgrep-or-gitleaks-update" >> "$GITHUB_OUTPUT"
+
+      - name: Enable auto-merge
+        if: steps.eligibility.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
+
+      - name: Disable auto-merge
+        # eligibility チェックが異常終了した場合でも予約済み auto-merge を解除できるよう always() を付ける
+        if: always() && steps.eligibility.outputs.eligible != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          SKIP_REASON: ${{ steps.eligibility.outputs.reason }}
+        run: |
+          echo "Skipped auto-merge: $SKIP_REASON"
+          # 予約済みの auto-merge が残ったまま条件外の変更がマージされるのを防ぐ。
+          # 未予約の PR では失敗するが、その場合は解除不要なのでエラーを無視する。
+          gh pr merge --disable-auto "$PR_URL" || true

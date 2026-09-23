@@ -1,0 +1,176 @@
+
+/* Please visit the URL below for more information: */
+/*   https://shd101wyy.github.io/markdown-preview-enhanced/#/customize-css */
+
+/* Crossnote プレビュー全体の見た目と独自ブロックの装飾を定義する。 */
+.markdown-preview.markdown-preview {
+  background-color: #f0f0f0;
+
+  body {
+    color: #494949;
+  }
+
+  pre {
+    color: #623542;
+    background-color: #ccede4;
+    padding: 0.75em 1em;
+  }
+
+  blockquote {
+    border-color: #5f3eab;
+  }
+
+  h1 {
+    color: #494949;
+    font-weight: bold;
+    padding: 0.3em;
+    border: solid 3px #199aea;
+    border-radius: 0.3em;
+      counter-reset: chapter;
+  }
+
+  h2 {
+    color: #494949;
+    position: relative;
+    font-weight: bold;
+    margin-top: 0.0em;  margin-bottom: 0.5em; margin-left: 0.0em;  margin-right: 0.0em;
+    padding-top: 0.5em; padding-bottom: 0.1em;  padding-left: 0.0em;  padding-right: 0.5em;
+    border-bottom: 2px solid #199aea;
+      counter-reset: sub-chapter;
+  }
+
+  h3 {
+    color: #494949;
+    background-color: #f4f4f4;
+    padding-top: 0.3em; padding-bottom: 0.3em;  padding-left: 0.5em;  padding-right: 0.0em;
+    border-left: 6px solid #199aea;
+      counter-reset: section;
+  }
+
+  h4 {
+    color: #494949;
+    background-color: #f4f4f4;
+    padding-top: 0.3em; padding-bottom: 0.3em;  padding-left: 0.5em;  padding-right: 0.0em;
+    border-left: 2px solid #199aea;
+    border-radius: 6px;
+      counter-reset: sub-section;
+  }
+
+  h5 {
+    color: #494949;
+    padding-top: 0.3em; padding-bottom: 0.0em;  padding-left: 0.7em;  padding-right: 0.0em;
+    border-bottom-style: dotted;
+    border-bottom-color: #199aea;
+    border-bottom-width:thin;
+      counter-reset: sub-sub-section;
+  }
+  
+  h2:before{
+      counter-increment: chapter;
+      content: counter(chapter) ". ";
+  }
+  
+  h3:before{
+      counter-increment: sub-chapter;
+      content: counter(chapter) "." counter(sub-chapter) ". ";
+  }
+  
+  h4:before{
+      counter-increment: section;
+      content: counter(chapter) "." counter(sub-chapter) "." counter(section) ". ";
+  }
+  
+  h5:before{
+      counter-increment: sub-section;
+      content: counter(chapter) "." counter(sub-chapter) "." counter(section) "." counter(sub-section) ".";
+  }
+
+  table thead th {
+    background: #199aea;
+    font-weight: bold;
+    vertical-align: top;
+    color: #fff;
+  }
+  table th,
+  table td {
+    padding: 6px 13px;
+    border: 1px solid #ddd;
+  }
+  table tr {
+    background-color: #fff;
+    border-top: 1px solid #ccc;
+  }
+  table tr:nth-child(2n) {
+    background-color: #f8f8f8;
+  }
+
+  hr {
+    background-color: #f4f4f4;
+    border-top: 2px dashed #199aea;
+  }
+  
+  a {
+    color: #293dc2;
+    text-decoration: none;
+  }
+  a:hover,
+  a:active {
+    text-decoration: underline;
+  }
+
+  /* 画像の配置を記法で切り替える。 */
+  img[src*='#center'] { 
+      display: block;
+      margin: auto;
+  }
+
+  img[src*='#right'] { 
+      display: block;
+      float: right;
+  }
+
+  /* 固定幅で差し込みたい画像用のユーティリティ。 */
+  .image_w300 {
+    width: 300px;
+    height: auto;
+  }
+
+  /* parser.js が生成する各 callout（div.note 等）の配色とラベルをまとめて定義する。 */
+  .callout(@fg; @bg; @label) {
+    color: @fg;
+    background-color: @bg;
+    padding: 0.3em;
+    border-radius: 0.3em;
+    margin-top: 0.6em;
+    margin-bottom: 0.6em;
+    line-height: 1.6;
+
+    &::before {
+      content: @label;
+      display: block;
+      font-weight: bold;
+      margin-bottom: 0.2em;
+    }
+
+    > p {
+      margin: 0;
+    }
+
+    > :first-child {
+      margin-top: 0;
+    }
+
+    > :last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  div.note    { .callout(#38225d; #e2daf1; '📝 Note'); }
+  div.tip     { .callout(#094409; #d2f9d2; '💡 Tip'); }
+  div.info    { .callout(#002b4d; #e0f2ff; '🔍 Info'); }
+  div.source  { .callout(#2f3f4f; #e9eef3; '📚 Source'); }
+  div.warning { .callout(#651b01; #ffdacc; '🔥 Warning'); }
+  div.caution { .callout(#664b00; #fff1cc; '⚡ Caution'); }
+  div.sample  { .callout(#82362d; #7dc9d2; '💻 Sample'); }
+  div.result  { .callout(#e6dddd; #192222; '🔴 Result'); }
+}
