@@ -1,7 +1,7 @@
 [project]
-name = "XXXX"
+name = "okiba"
 version = "0.1.0"  # Major.Minor.Patch
-description = "Add your description here"
+description = "Local-first personal inventory manager — track what's in which box, where it's stored, and what you've let go."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

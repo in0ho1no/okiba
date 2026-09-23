@@ -9,4 +9,4 @@ description: "Python ファイルを編集・作成・レビューするとき�
 
 - コーディング規約の正本は pyproject.toml とし、競合時はそちらを優先する
 - 必要な変数や関数には型ヒントを付ける
-- コード変更後は必ず `python-quality` スキルを使い、ruff・mypy・pyright の結果を確認する。
+- コード変更後は必ず `sk-python-quality` スキルを使い、ruff・mypy・pyright の結果を確認する。

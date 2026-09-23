@@ -69,6 +69,7 @@
 		"files.exclude": {
 			// "**/.git": false,  // デフォルトでtrue
 			"**/git-setup": true,
+			"**/.crossnote": true,
 		},
 		// VSCode標準のGit blame(行末に表示される最終コミット情報)を無効化
 		"git.blame.editorDecoration.enabled": false,
