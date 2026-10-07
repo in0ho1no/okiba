@@ -27,7 +27,7 @@ uv run python src/main.py
 
 CIのSemgrepでは、FastAPI/Jinjaのフォームに適用できないDjango専用のCSRFルールだけを除外する。フォームへのトークン埋め込みは `test_every_post_form_carries_token` で、更新要求の検証は `verify_token` のHTTPテストで確認する。
 
-SQLは固定の文字列で書き、値はパラメーターで渡す。件数が変わる条件は、JSON配列を1つのパラメーターで渡して `json_each` で展開する。CIのsemgrepは、文字列を組み立てたSQLを指摘する。
+SQLは固定の文字列で書き、値はパラメーターで渡す。件数が変わる条件は、JSON配列を1つのパラメーターで渡して `json_each` で展開する。CIのSemgrepは、文字列を組み立てたSQLを指摘する。
 
 DB形式を変えるときは、既存のSQLファイルを書き換えず、次の番号のSQLファイルを追加する。起動時に、更新前のDBを `okiba.v<旧バージョン>.bak.sqlite3` として退避してから適用する。
 
