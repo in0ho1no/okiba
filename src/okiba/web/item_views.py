@@ -4,7 +4,7 @@ import sqlite3
 from typing import Any
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, Response
 from starlette.datastructures import FormData, QueryParams, UploadFile
 
@@ -25,8 +25,9 @@ from okiba.forms import (
 from okiba.items import ACTIVE_STATUSES, STATUS_LABELS, ItemDetail, ItemInput, SearchQuery
 from okiba.naming import is_cable_template
 from okiba.web.common import Conn, category_selection, optional_int, redirect, render, text_value
+from okiba.web.csrf import verify_token
 
-router: APIRouter = APIRouter()
+router: APIRouter = APIRouter(dependencies=[Depends(verify_token)])
 
 
 @router.get('/', response_class=HTMLResponse)

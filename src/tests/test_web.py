@@ -9,11 +9,16 @@ import pytest
 from fastapi.testclient import TestClient
 from httpx2 import Response
 
+from okiba.config import Settings
+from okiba.web.app import create_app
+from okiba.web.csrf import COOKIE_NAME as CSRF_COOKIE
+from okiba.web.csrf import FIELD_NAME as CSRF_FIELD
 from tests.helpers import BOOKS_ID, CABLES_ID, image_bytes
 
 
 def _post(client: TestClient, url: str, data: dict[str, str], files: list[tuple[str, tuple[str, bytes, str]]] | None = None) -> Response:
-    response: Response = client.post(url, data=data, files=files)
+    """画面のフォームと同じく、Cookieで受け取ったCSRF対策のトークンを付けて送信する。"""
+    response: Response = client.post(url, data={**data, CSRF_FIELD: client.cookies[CSRF_COOKIE]}, files=files)
     return response
 
 
@@ -152,8 +157,8 @@ class TestRegisterFlow:
 
     def test_photo_can_be_attached_on_registration(self, client: TestClient, box: str) -> None:
         """前提: 箱A-01 / 操作: 写真付きで登録する / 期待: 詳細画面に縮小版が表示され、画像が配信される。"""
-        response: Response = client.post(
-            '/items/new', data={**_cable_form(box), 'photo_purpose': '正面'}, files=[('photos', ('front.jpg', image_bytes(), 'image/jpeg'))]
+        response: Response = _post(
+            client, '/items/new', {**_cable_form(box), 'photo_purpose': '正面'}, files=[('photos', ('front.jpg', image_bytes(), 'image/jpeg'))]
         )
         thumb: re.Match[str] | None = re.search(r'src="(/media/thumbs/[^"]+)"', response.text)
         assert thumb is not None
@@ -208,7 +213,7 @@ class TestUpdateFlow:
     def test_photo_purpose_and_detach(self, client: TestClient, box: str) -> None:
         """前提: 写真付きのケーブル / 操作: 用途を変え、紐付けを解除する / 期待: それぞれ反映される。"""
         item_id: str = _item_id(_post(client, '/items/new', _cable_form(box)))
-        client.post(f'/items/{item_id}/photos', data={'photo_purpose': '正面'}, files=[('photos', ('a.jpg', image_bytes(), 'image/jpeg'))])
+        _post(client, f'/items/{item_id}/photos', {'photo_purpose': '正面'}, files=[('photos', ('a.jpg', image_bytes(), 'image/jpeg'))])
         detail: str = client.get(f'/items/{item_id}').text
         photo_id: str = re.findall(r'/photos/(\d+)/purpose', detail)[0]
         assert '用途を変更しました' in _post(client, f'/photos/{photo_id}/purpose', {'purpose': '裏面'}).text
@@ -220,8 +225,8 @@ class TestUpdateFlow:
         """前提: 写真付きのケーブル / 操作: 同じ写真をもう一度追加する / 期待: 二重取り込みの警告が表示される。"""
         item_id: str = _item_id(_post(client, '/items/new', _cable_form(box)))
         files: list[tuple[str, tuple[str, bytes, str]]] = [('photos', ('a.jpg', image_bytes(), 'image/jpeg'))]
-        client.post(f'/items/{item_id}/photos', data={}, files=files)
-        response: Response = client.post(f'/items/{item_id}/photos', data={}, files=files)
+        _post(client, f'/items/{item_id}/photos', {}, files=files)
+        response: Response = _post(client, f'/items/{item_id}/photos', {}, files=files)
         assert '同じ内容の写真が既に取り込まれています' in response.text
 
 
@@ -269,3 +274,50 @@ class TestManageFlow:
         response: Response = _post(client, '/tags', {'name': '手放し候補'})
         assert response.status_code == 422
         assert '同じ名前のタグが既にあります' in response.text
+
+
+class TestCsrf:
+    def _tag_count(self, client: TestClient) -> int:
+        return len(re.findall(r'action="/tags/(\d+)/rename"', client.get('/tags').text))
+
+    def test_cookie_is_http_only_and_same_site_strict(self, settings: Settings) -> None:
+        """前提: Cookieなし / 操作: 画面を開く / 期待: スクリプトから読めず、別サイトからの送信に付かないCookieでトークンが配られる。"""
+        with TestClient(create_app(settings)) as fresh:
+            header: str = fresh.get('/').headers['set-cookie']
+        assert header.startswith(f'{CSRF_COOKIE}=')
+        assert 'HttpOnly' in header
+        assert 'SameSite=strict' in header
+
+    @pytest.mark.parametrize(
+        ('token', 'origin'),
+        [(None, None), ('x' * 43, None), ('valid', 'https://evil.example')],
+        ids=['トークンなし', 'トークン不一致', '別サイトからの送信'],
+    )
+    def test_forged_post_is_rejected(self, client: TestClient, token: str | None, origin: str | None) -> None:
+        """前提: なし / 操作: 正しいトークンを持たない、または別サイトからのフォーム送信 / 期待: 403で拒否され、データは変わらない。"""
+        data: dict[str, str] = {'name': '不正なタグ'}
+        if token is not None:
+            data[CSRF_FIELD] = client.cookies[CSRF_COOKIE] if token == 'valid' else token
+        headers: dict[str, str] = {'origin': origin} if origin else {}
+        response: Response = client.post('/tags', data=data, headers=headers)
+        assert response.status_code == 403
+        assert '送信できません' in response.text
+        assert self._tag_count(client) == 0
+
+    def test_same_origin_post_with_token_is_accepted(self, client: TestClient) -> None:
+        """前提: なし / 操作: 同じオリジンから正しいトークンで送信する / 期待: 受け付けられる。"""
+        response: Response = client.post(
+            '/tags', data={'name': 'タグ', CSRF_FIELD: client.cookies[CSRF_COOKIE]}, headers={'origin': 'http://testserver'}
+        )
+        assert response.status_code == 200
+        assert self._tag_count(client) == 1
+
+    @pytest.mark.parametrize('url', ['/items/new', '/categories', f'/categories/{CABLES_ID}', '/tags', '/containers'])
+    def test_every_post_form_carries_token(self, client: TestClient, url: str) -> None:
+        """前提: なし / 操作: フォームのある画面を開く / 期待: POSTのフォームすべてにトークンが埋め込まれている。"""
+        _post(client, '/tags', {'name': '既存タグ'})
+        html: str = client.get(url).text
+        forms: list[str] = re.findall(r'<form[^>]*method="post"[^>]*>.*?</form>', html, flags=re.DOTALL)
+        assert forms
+        token: str = client.cookies[CSRF_COOKIE]
+        assert all(f'name="{CSRF_FIELD}" value="{token}"' in form for form in forms)

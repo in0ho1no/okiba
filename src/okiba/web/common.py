@@ -89,7 +89,9 @@ def render(request: Request, name: str, context: Mapping[str, Any], status_code:
     duplicate: str = request.query_params.get('dup', '')
     if duplicate:
         notice = f'{notice} 同じ内容の写真が既に取り込まれています（{duplicate}）。'.strip()
-    full_context: dict[str, Any] = {'notice': notice, 'errors': {}, **context}
+    # フォームに埋め込むCSRF対策のトークン。テンプレートでは {{ security.csrf_token }} で参照する。
+    security: dict[str, str] = {'csrf_token': getattr(request.state, 'csrf_token', '')}
+    full_context: dict[str, Any] = {'notice': notice, 'errors': {}, 'security': security, **context}
     return templates.TemplateResponse(request, name, full_context, status_code=status_code)
 
 

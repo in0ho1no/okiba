@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% import 'macros.html' as m %}
+{% import 'macros.html' as m with context %}
 {% block title %}{{ item.name }}{% endblock %}
 {% block content %}
 <h1>{{ item.name }}</h1>
@@ -31,7 +31,7 @@
 {% if item.status in ('stored', 'in_use', 'lent') %}
 <section>
   <h2>移動</h2>
-  <form method="post" action="/items/{{ item.id }}/move" class="inline-form">
+  <form method="post" action="/items/{{ item.id }}/move" class="inline-form"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
     <label for="move-container">{{ '新しい戻し先' if item.is_return_target else '移動先' }}</label>
     <select id="move-container" name="container_id">
       <option value="">選んでください</option>

@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% import 'macros.html' as m %}
+{% import 'macros.html' as m with context %}
 {% block title %}保管場所{% endblock %}
 {% block content %}
 <h1>保管場所</h1>
@@ -12,7 +12,7 @@
 {% endif %}
 
 <h2>保管場所を作成</h2>
-<form method="post" action="/containers" class="stack">
+<form method="post" action="/containers" class="stack"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
   <div class="field-grid">
     <div class="field">
       <label for="name">名前</label>
@@ -46,7 +46,7 @@
 
 <h2>保管場所の種類を追加</h2>
 <p class="muted">現在の種類：{{ kinds | map(attribute='name') | join('・') }}</p>
-<form method="post" action="/container-kinds" class="inline-form">
+<form method="post" action="/container-kinds" class="inline-form"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
   <label for="kind_name">種類名</label>
   <input id="kind_name" name="kind_name" type="text">
   <button type="submit">追加</button>

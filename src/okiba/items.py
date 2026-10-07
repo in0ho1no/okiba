@@ -1,7 +1,6 @@
 """物品の登録・内容の修正・移動・検索・箱の中身。"""
 
 import json
-import re
 import sqlite3
 from dataclasses import dataclass, field
 from typing import Any
@@ -399,47 +398,67 @@ def _summaries(conn: sqlite3.Connection, rows: list[sqlite3.Row]) -> list[ItemSu
     return summaries
 
 
-def _text_conditions(text: str) -> tuple[list[str], list[str]]:
-    """検索語ごとの条件。3文字以上はFTS5の trigram 索引、2文字以下は LIKE の部分一致で探す。"""
-    conditions: list[str] = []
-    params: list[str] = []
+# 件数が変わる条件（状態・保管場所・検索語）はJSON配列の1パラメーターで渡し、json_each で展開する。
+# SQLを固定の文字列にして、条件の組み立てによるSQLインジェクションの余地をなくす。
+_SEARCH_SQL: str = """
+SELECT items.* FROM items
+WHERE items.deleted = 0
+  AND items.merged_into_id IS NULL
+  AND (:statuses IS NULL OR items.status IN (SELECT value FROM json_each(:statuses)))
+  AND (:category_id IS NULL OR items.category_id = :category_id
+       OR items.category_id IN (SELECT id FROM categories WHERE parent_id = :category_id))
+  AND (:container_ids IS NULL OR items.container_id IN (SELECT value FROM json_each(:container_ids)))
+  AND (:tag_id IS NULL OR EXISTS (SELECT 1 FROM item_tags WHERE item_tags.item_id = items.id AND item_tags.tag_id = :tag_id))
+  AND (:fts_query IS NULL OR items.id IN (SELECT rowid FROM item_search WHERE item_search MATCH :fts_query))
+  AND NOT EXISTS (
+      SELECT 1 FROM json_each(:like_patterns) AS term
+      WHERE NOT EXISTS (
+          SELECT 1 FROM item_search WHERE item_search.rowid = items.id AND item_search.body LIKE term.value ESCAPE '\\'
+      )
+  )
+ORDER BY items.updated_at DESC, items.id DESC
+LIMIT :limit
+"""
+
+_CONTENTS_SQL: str = """
+SELECT * FROM items
+WHERE deleted = 0 AND merged_into_id IS NULL AND container_id IN (SELECT value FROM json_each(:container_ids))
+ORDER BY name, id
+"""
+
+
+def _text_params(text: str) -> tuple[str | None, list[str]]:
+    """検索語を、FTS5の検索式（3文字以上の語）と LIKE のパターン（2文字以下の語）に分ける。
+
+    trigram トークナイザーは3文字未満の語で索引を使えないため、短い語だけ LIKE の部分一致で探す。
+    FTS5の検索式は語ごとのフレーズを空白で並べ、すべてを含む（AND）条件にする。
+    """
+    phrases: list[str] = []
+    patterns: list[str] = []
     for term in search_normalize(text).split():
         if len(term) >= _TRIGRAM_MIN_LENGTH:
-            conditions.append('items.id IN (SELECT rowid FROM item_search WHERE item_search MATCH ?)')
-            params.append('"' + term.replace('"', '""') + '"')
+            phrases.append('"' + term.replace('"', '""') + '"')
         else:
-            conditions.append("items.id IN (SELECT rowid FROM item_search WHERE body LIKE ? ESCAPE '\\')")
-            params.append('%' + re.sub(r'([\\%_])', r'\\\1', term) + '%')
-    return conditions, params
+            patterns.append('%' + term.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%')
+    return (' '.join(phrases) or None), patterns
 
 
 def search_items(conn: sqlite3.Connection, query: SearchQuery, limit: int = 500) -> list[ItemSummary]:
     """条件に合う物品を新しい順に返す。削除済み・統合済みの登録は含めない。"""
-    conditions: list[str] = ['items.deleted = 0', 'items.merged_into_id IS NULL']
-    params: list[Any] = []
-    if query.statuses:
-        conditions.append(f'items.status IN ({", ".join("?" for _ in query.statuses)})')
-        params.extend(query.statuses)
-    if query.category_id is not None:
-        conditions.append('(items.category_id = ? OR items.category_id IN (SELECT id FROM categories WHERE parent_id = ?))')
-        params.extend([query.category_id, query.category_id])
-    if query.container_id is not None:
-        container_ids: set[int] = descendant_ids(conn, query.container_id)
-        conditions.append(f'items.container_id IN ({", ".join("?" for _ in container_ids)})')
-        params.extend(sorted(container_ids))
-    if query.tag_id is not None:
-        conditions.append('EXISTS (SELECT 1 FROM item_tags WHERE item_tags.item_id = items.id AND item_tags.tag_id = ?)')
-        params.append(query.tag_id)
-    text_conditions: list[str]
-    text_params: list[str]
-    text_conditions, text_params = _text_conditions(query.text)
-    conditions.extend(text_conditions)
-    params.extend(text_params)
-    params.append(limit)
-    rows: list[sqlite3.Row] = conn.execute(
-        f'SELECT items.* FROM items WHERE {" AND ".join(conditions)} ORDER BY items.updated_at DESC, items.id DESC LIMIT ?',
-        params,
-    ).fetchall()
+    fts_query: str | None
+    like_patterns: list[str]
+    fts_query, like_patterns = _text_params(query.text)
+    container_ids: list[int] | None = sorted(descendant_ids(conn, query.container_id)) if query.container_id is not None else None
+    params: dict[str, Any] = {
+        'statuses': json.dumps(list(query.statuses)) if query.statuses else None,
+        'category_id': query.category_id,
+        'container_ids': json.dumps(container_ids) if container_ids is not None else None,
+        'tag_id': query.tag_id,
+        'fts_query': fts_query,
+        'like_patterns': json.dumps(like_patterns, ensure_ascii=False),
+        'limit': limit,
+    }
+    rows: list[sqlite3.Row] = conn.execute(_SEARCH_SQL, params).fetchall()
     return _summaries(conn, rows)
 
 
@@ -447,11 +466,7 @@ def container_contents(conn: sqlite3.Connection, container_id: int, include_nest
     """箱の中身を返す。保管中の物と、使用中・貸出中でこの箱を戻し先とする物を分ける。"""
     get_container(conn, container_id)
     container_ids: list[int] = sorted(descendant_ids(conn, container_id)) if include_nested else [container_id]
-    placeholders: str = ', '.join('?' for _ in container_ids)
-    rows: list[sqlite3.Row] = conn.execute(
-        f'SELECT * FROM items WHERE deleted = 0 AND merged_into_id IS NULL AND container_id IN ({placeholders}) ORDER BY name, id',
-        container_ids,
-    ).fetchall()
+    rows: list[sqlite3.Row] = conn.execute(_CONTENTS_SQL, {'container_ids': json.dumps(container_ids)}).fetchall()
     summaries: list[ItemSummary] = _summaries(conn, rows)
     counts: list[StatusCount] = []
     for status in ACTIVE_STATUSES:

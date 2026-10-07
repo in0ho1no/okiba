@@ -75,14 +75,19 @@ def _container(row: sqlite3.Row) -> Container:
     )
 
 
-_SELECT: str = (
-    'SELECT containers.*, container_kinds.name AS kind_name FROM containers JOIN container_kinds ON container_kinds.id = containers.kind_id'
+_LIST_SQL: str = (
+    'SELECT containers.*, container_kinds.name AS kind_name FROM containers JOIN container_kinds ON container_kinds.id = containers.kind_id '
+    'ORDER BY containers.name, containers.id'
+)
+_GET_SQL: str = (
+    'SELECT containers.*, container_kinds.name AS kind_name FROM containers JOIN container_kinds ON container_kinds.id = containers.kind_id '
+    'WHERE containers.id = ?'
 )
 
 
 def list_containers(conn: sqlite3.Connection, include_retired: bool = False) -> list[Container]:
     """保管場所を階層順（親の直後に子）に返す。"""
-    rows: list[sqlite3.Row] = conn.execute(f'{_SELECT} ORDER BY containers.name, containers.id').fetchall()
+    rows: list[sqlite3.Row] = conn.execute(_LIST_SQL).fetchall()
     containers: list[Container] = [_container(row) for row in rows if include_retired or not row['retired']]
     children: dict[int | None, list[Container]] = {}
     known_ids: set[int] = {container.id for container in containers}
@@ -102,7 +107,7 @@ def list_containers(conn: sqlite3.Connection, include_retired: bool = False) -> 
 
 def get_container(conn: sqlite3.Connection, container_id: int) -> Container:
     """保管場所を1件返す。"""
-    row: sqlite3.Row | None = conn.execute(f'{_SELECT} WHERE containers.id = ?', (container_id,)).fetchone()
+    row: sqlite3.Row | None = conn.execute(_GET_SQL, (container_id,)).fetchone()
     if row is None:
         raise NotFoundError(f'container {container_id}')
     return _container(row)

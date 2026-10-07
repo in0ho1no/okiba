@@ -34,6 +34,13 @@ _FORMAT_EXTENSIONS: dict[str, str] = {
 }
 
 
+# 紐付け先の種類ごとの一覧取得SQL。列名を文字列で組み立てず、固定のSQLから選ぶ。
+_LIST_SQL: dict[str, str] = {
+    'item': 'SELECT * FROM photos WHERE item_id = ? ORDER BY id',
+    'container': 'SELECT * FROM photos WHERE container_id = ? ORDER BY id',
+}
+
+
 @dataclass(frozen=True)
 class Photo:
     """取り込み済みの写真。パスは写真フォルダからの相対パス（区切りは /）。"""
@@ -186,8 +193,7 @@ def list_photos(
     target_type: TargetType
     target_id: int
     target_type, target_id = _target(item_id, container_id)
-    column: str = 'item_id' if target_type == 'item' else 'container_id'
-    rows: list[sqlite3.Row] = conn.execute(f'SELECT * FROM photos WHERE {column} = ? ORDER BY id', (target_id,)).fetchall()
+    rows: list[sqlite3.Row] = conn.execute(_LIST_SQL[target_type], (target_id,)).fetchall()
     return [_photo(row) for row in rows if include_detached or not row['detached']]
 
 

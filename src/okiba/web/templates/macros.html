@@ -50,11 +50,11 @@
       {% for p in photos %}
         <li class="photo">
           <a href="/media/{{ p.display_path }}" target="_blank" rel="noopener"><img src="/media/{{ p.thumb_path }}" alt="{{ owner_label }}の写真（{{ p.purpose or '用途未設定' }}）" loading="lazy"></a>
-          <form method="post" action="/photos/{{ p.id }}/purpose" class="inline">
+          <form method="post" action="/photos/{{ p.id }}/purpose" class="inline"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
             <input type="text" name="purpose" value="{{ p.purpose }}" list="dl-purposes" aria-label="用途" class="short">
             <button type="submit">用途を変更</button>
           </form>
-          <form method="post" action="/photos/{{ p.id }}/detach" class="inline">
+          <form method="post" action="/photos/{{ p.id }}/detach" class="inline"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
             <button type="submit" class="secondary">紐付けを解除</button>
           </form>
         </li>
@@ -67,7 +67,7 @@
 {%- endmacro %}
 
 {% macro photo_upload(action, errors) -%}
-  <form method="post" action="{{ action }}" enctype="multipart/form-data" class="stack">
+  <form method="post" action="{{ action }}" enctype="multipart/form-data" class="stack"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
     <div class="field">
       <label for="photo-files">写真を追加</label>
       <input id="photo-files" type="file" name="photos" multiple accept="image/*,.heic,.heif">

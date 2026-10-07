@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
-{% import 'macros.html' as m %}
+{% import 'macros.html' as m with context %}
 {% block title %}{{ path }}{% endblock %}
 {% block content %}
 <p><a href="/categories">カテゴリ一覧</a></p>
 <h1>{{ path }}</h1>
 
-<form method="post" action="/categories/{{ category.id }}/rename" class="inline-form">
+<form method="post" action="/categories/{{ category.id }}/rename" class="inline-form"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
   <label for="rename">カテゴリ名</label>
   <input id="rename" name="name" type="text" value="{{ category.name }}">
   <button type="submit">名称を変更</button>
@@ -35,7 +35,7 @@
           <td><input form="field-{{ f.id }}" name="required" type="checkbox" {{ 'checked' if f.required }} aria-label="必須"></td>
           <td><input form="field-{{ f.id }}" name="clear_on_copy" type="checkbox" {{ 'checked' if f.clear_on_copy }} aria-label="複製時クリア"></td>
           <td><input form="field-{{ f.id }}" name="dedupe" type="checkbox" {{ 'checked' if f.dedupe }} aria-label="重複判定"></td>
-          <td><form id="field-{{ f.id }}" method="post" action="/fields/{{ f.id }}"><button type="submit">更新</button></form></td>
+          <td><form id="field-{{ f.id }}" method="post" action="/fields/{{ f.id }}"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}"><button type="submit">更新</button></form></td>
         </tr>
       {% endfor %}
     </tbody>
@@ -45,7 +45,7 @@
 {% endif %}
 
 <h2>項目を追加</h2>
-<form method="post" action="/categories/{{ category.id }}/fields" class="stack">
+<form method="post" action="/categories/{{ category.id }}/fields" class="stack"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
   <div class="field-grid">
     <div class="field">
       <label for="label">表示名</label>

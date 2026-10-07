@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% import 'macros.html' as m %}
+{% import 'macros.html' as m with context %}
 {% block title %}{{ container.display_name }}{% endblock %}
 {% block content %}
 <p><a href="/containers">保管場所一覧</a></p>
@@ -29,7 +29,7 @@
 
 <section>
   <h2>名前・種類・ラベルID</h2>
-  <form method="post" action="/containers/{{ container.id }}/edit" class="stack">
+  <form method="post" action="/containers/{{ container.id }}/edit" class="stack"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
     <div class="field-grid">
       <div class="field">
         <label for="name">名前</label>
@@ -54,7 +54,7 @@
 
 <section>
   <h2>移動</h2>
-  <form method="post" action="/containers/{{ container.id }}/move" class="inline-form">
+  <form method="post" action="/containers/{{ container.id }}/move" class="inline-form"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
     <label for="parent_id">新しい親の保管場所</label>
     <select id="parent_id" name="parent_id">
       <option value="">なし（最上位）</option>

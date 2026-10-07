@@ -22,6 +22,10 @@ uv run python src/main.py
 | `src/okiba/web/` | 画面（FastAPIのルーティング、Jinja2テンプレート、CSS・JavaScript） |
 | `src/tests/` | テスト |
 
+画面に `method="post"` のフォームを追加するときは、フォームの中に `<input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">` を置く。トークンのない更新要求は、別サイトからの不正な送信（CSRF）として403で拒否する。`test_web.py` が、主な画面のすべてのPOSTフォームにトークンがあることを確認する。
+
+SQLは固定の文字列で書き、値はパラメーターで渡す。件数が変わる条件は、JSON配列を1つのパラメーターで渡して `json_each` で展開する。CIのsemgrepは、文字列を組み立てたSQLを指摘する。
+
 DB形式を変えるときは、既存のSQLファイルを書き換えず、次の番号のSQLファイルを追加する。起動時に、更新前のDBを `okiba.v<旧バージョン>.bak.sqlite3` として退避してから適用する。
 
 ## テスト

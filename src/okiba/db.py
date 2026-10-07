@@ -3,12 +3,9 @@
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
-from importlib import resources
-from importlib.resources.abc import Traversable
-from itertools import count
 from pathlib import Path
 
-_savepoint_ids: Iterator[int] = count(1)
+MIGRATIONS_DIR: Path = Path(__file__).parent / 'migrations'
 
 
 class DatabaseVersionError(Exception):
@@ -31,15 +28,15 @@ def connect(path: Path | str) -> sqlite3.Connection:
 def transaction(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
     """ブロック内の更新をすべて確定するか、すべて取り消す。入れ子の場合はセーブポイントを使う。"""
     if conn.in_transaction:
-        name: str = f'sp_{next(_savepoint_ids)}'
-        conn.execute(f'SAVEPOINT {name}')
+        # SQLiteは同名のセーブポイントを入れ子にでき、ROLLBACK TO・RELEASE は直近の同名セーブポイントに作用する
+        conn.execute('SAVEPOINT okiba_nested')
         try:
             yield conn
         except BaseException:
-            conn.execute(f'ROLLBACK TO {name}')
-            conn.execute(f'RELEASE {name}')
+            conn.execute('ROLLBACK TO okiba_nested')
+            conn.execute('RELEASE okiba_nested')
             raise
-        conn.execute(f'RELEASE {name}')
+        conn.execute('RELEASE okiba_nested')
         return
     conn.execute('BEGIN IMMEDIATE')
     try:
@@ -52,11 +49,7 @@ def transaction(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
 
 def load_migrations() -> list[str]:
     """番号順に並べたマイグレーションSQLを返す。リストの位置+1がDB形式のバージョンになる。"""
-    package: Traversable = resources.files('okiba') / 'migrations'
-    files: list[Traversable] = sorted(
-        (entry for entry in package.iterdir() if entry.name.endswith('.sql')),
-        key=lambda entry: entry.name,
-    )
+    files: list[Path] = sorted(MIGRATIONS_DIR.glob('*.sql'), key=lambda entry: entry.name)
     return [entry.read_text(encoding='utf-8') for entry in files]
 
 

@@ -3,7 +3,7 @@
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, Response
 from starlette.datastructures import FormData
 
@@ -11,9 +11,10 @@ from okiba import catalog, containers, events, items, photos, tags
 from okiba.catalog import Category
 from okiba.common import ValidationError
 from okiba.web.common import Conn, optional_int, redirect, render, text_value
+from okiba.web.csrf import verify_token
 from okiba.web.item_views import import_uploads
 
-router: APIRouter = APIRouter()
+router: APIRouter = APIRouter(dependencies=[Depends(verify_token)])
 
 
 @router.get('/manage', response_class=HTMLResponse)

@@ -6,12 +6,15 @@ from typing import Any
 
 from okiba.common import NotFoundError
 
+# 紐付け先の種類ごとの写真取得SQL。列名を文字列で組み立てず、固定のSQLから選ぶ。
+_PHOTOS_SQL: dict[str, str] = {
+    'item': 'SELECT id, sha256, purpose, detached FROM photos WHERE item_id = ? ORDER BY id',
+    'container': 'SELECT id, sha256, purpose, detached FROM photos WHERE container_id = ? ORDER BY id',
+}
 
-def _photos(conn: sqlite3.Connection, column: str, target_id: int) -> list[dict[str, Any]]:
-    rows: list[sqlite3.Row] = conn.execute(
-        f'SELECT id, sha256, purpose, detached FROM photos WHERE {column} = ? ORDER BY id',
-        (target_id,),
-    ).fetchall()
+
+def _photos(conn: sqlite3.Connection, target_type: str, target_id: int) -> list[dict[str, Any]]:
+    rows: list[sqlite3.Row] = conn.execute(_PHOTOS_SQL[target_type], (target_id,)).fetchall()
     return [{'id': row['id'], 'sha256': row['sha256'], 'purpose': row['purpose'], 'detached': bool(row['detached'])} for row in rows]
 
 
@@ -46,7 +49,7 @@ def item_snapshot(conn: sqlite3.Connection, item_id: int) -> dict[str, Any]:
         'merged_into_id': row['merged_into_id'],
         'tags': [{'id': tag['id'], 'name': tag['name']} for tag in tags],
         'identifiers': [{'kind': identifier['kind'], 'value': identifier['value']} for identifier in identifiers],
-        'photos': _photos(conn, 'item_id', item_id),
+        'photos': _photos(conn, 'item', item_id),
     }
 
 
@@ -62,5 +65,5 @@ def container_snapshot(conn: sqlite3.Connection, container_id: int) -> dict[str,
         'parent_id': row['parent_id'],
         'label': row['label'],
         'retired': bool(row['retired']),
-        'photos': _photos(conn, 'container_id', container_id),
+        'photos': _photos(conn, 'container', container_id),
     }

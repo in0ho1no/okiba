@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% import 'macros.html' as m %}
+{% import 'macros.html' as m with context %}
 {% block title %}カテゴリとテンプレート{% endblock %}
 {% block content %}
 <h1>カテゴリとテンプレート</h1>
@@ -14,7 +14,7 @@
 </ul>
 
 <h2>カテゴリを作成</h2>
-<form method="post" action="/categories" class="stack">
+<form method="post" action="/categories" class="stack"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
   <div class="field">
     <label for="name">名前</label>
     <input id="name" name="name" type="text">

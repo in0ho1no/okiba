@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% import 'macros.html' as m %}
+{% import 'macros.html' as m with context %}
 {% block title %}{{ '登録' if mode == 'new' else '内容の修正' }}{% endblock %}
 {% block content %}
 {% if mode == 'new' %}
@@ -11,7 +11,7 @@
   <p><a href="/items/{{ item.id }}">詳細に戻る</a></p>
 {% endif %}
 
-<form method="post" action="{{ action_url }}" enctype="multipart/form-data" class="item-form" novalidate>
+<form method="post" action="{{ action_url }}" enctype="multipart/form-data" class="item-form" novalidate><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
   {# Enterキーで「作成」ボタンが押されないよう、既定のボタンを表示の更新にする #}
   <button type="submit" name="action" value="refresh" class="visually-hidden" tabindex="-1" aria-hidden="true">表示を更新</button>
   {% if mode == 'edit' %}<input type="hidden" name="prev_category_id" value="{{ form.category_id or '' }}">{% endif %}

@@ -10,6 +10,7 @@ from okiba.config import Settings, load_settings
 from okiba.db import open_database
 from okiba.web import item_views, manage_views
 from okiba.web.common import STATIC_DIR, render
+from okiba.web.csrf import CsrfError, issue_token
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -19,6 +20,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     resolved.photos_dir.mkdir(parents=True, exist_ok=True)
     app: FastAPI = FastAPI(title='Okiba', version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = resolved
+    app.middleware('http')(issue_token)
     app.mount('/static', StaticFiles(directory=STATIC_DIR), name='static')
     app.mount('/media', StaticFiles(directory=resolved.photos_dir), name='media')
     app.include_router(item_views.router)
@@ -27,5 +29,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(NotFoundError)
     async def not_found(request: Request, error: NotFoundError) -> HTMLResponse:
         return render(request, 'not_found.html', {}, status_code=404)
+
+    @app.exception_handler(CsrfError)
+    async def csrf_failed(request: Request, error: CsrfError) -> HTMLResponse:
+        return render(request, 'forbidden.html', {'reason': str(error)}, status_code=403)
 
     return app
