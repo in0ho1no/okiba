@@ -102,6 +102,38 @@ class TestFilters:
         assert _names(conn) == ['HDMI - DisplayPort 1.8m', 'リーダブルコード']
         assert _names(conn, statuses=('sold', 'disposed')) == ['吾輩は猫である']
 
+    def test_count_matches_search_for_every_filter(self, conn: sqlite3.Connection, places: Places, stock: dict[str, int]) -> None:
+        """前提: 階層・状態・削除・統合の異なる物品 / 操作: 各条件で検索と件数取得 / 期待: 総件数と結果件数が一致する。"""
+        novels: int = catalog.create_category(conn, '小説', BOOKS_ID)
+        items.register_item(conn, book_input(places.box_a1, title='新しい小説', isbn='', category_id=novels))
+        set_status(conn, stock['novel'], 'sold', None)
+        set_status(conn, stock['readable'], 'lent', places.box_a1)
+        conn.execute('UPDATE items SET deleted = 1 WHERE id = ?', (stock['usb'],))
+        merged: int = items.register_item(conn, cable_input(places.box_a2))
+        conn.execute('UPDATE items SET merged_into_id = ? WHERE id = ?', (stock['hdmi'], merged))
+        tag_id: int = conn.execute('SELECT id FROM tags WHERE name = ?', ('技術書',)).fetchone()[0]
+
+        queries: list[SearchQuery] = [
+            SearchQuery(),
+            SearchQuery(statuses=()),
+            SearchQuery(statuses=('sold',)),
+            SearchQuery(statuses=('stored', 'lent')),
+            SearchQuery(category_id=BOOKS_ID),
+            SearchQuery(category_id=novels),
+            SearchQuery(category_id=CABLES_ID),
+            SearchQuery(container_id=places.study),
+            SearchQuery(container_id=places.box_b1),
+            SearchQuery(tag_id=tag_id),
+            SearchQuery(text='リーダブル'),
+            SearchQuery(text='猫'),
+            SearchQuery(text='HDMI 1.8m'),
+            SearchQuery(text='存在しない'),
+            SearchQuery(text='リーダブル', category_id=BOOKS_ID, container_id=places.study, tag_id=tag_id, statuses=('lent',)),
+        ]
+        for query in queries:
+            result_count: int = len(items.search_items(conn, query, limit=100))
+            assert items.count_items(conn, query) == result_count, query
+
     def test_location_marks_return_destination(self, conn: sqlite3.Connection, places: Places, stock: dict[str, int]) -> None:
         """前提: 貸出中の書籍 / 操作: 検索する / 期待: 所在が戻し先として扱われ、保管場所の階層で表示される。"""
         set_status(conn, stock['readable'], 'lent', places.box_a1)

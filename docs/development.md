@@ -9,6 +9,7 @@ uv run python src/main.py
 ```
 
 - `127.0.0.1` だけで待ち受ける。ポートは `--port` で変更できる（既定は8000）。
+- HTTPのHostヘッダーは `127.0.0.1` と `localhost` のみ許可する。フェーズ4でLANから利用する際は、認証の追加とともに待ち受けアドレスと許可ホストを見直す。
 - データ（SQLiteのDBと写真フォルダ）の保存先は、環境変数 `OKIBA_DATA_DIR` で指定する。未指定の場合はホームディレクトリの `okiba-data` を使う。
 - 公開リポジトリに私物のデータが混入しないよう、保存先はリポジトリの外に置く。
 
@@ -23,6 +24,8 @@ uv run python src/main.py
 | `src/tests/` | テスト |
 
 画面に `method="post"` のフォームを追加するときは、フォームの中に `<input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">` を置く。トークンのない更新要求は、別サイトからの不正な送信（CSRF）として403で拒否する。`test_web.py` が、主な画面のすべてのPOSTフォームにトークンがあることを確認する。
+
+CIのSemgrepでは、FastAPI/Jinjaのフォームに適用できないDjango専用のCSRFルールだけを除外する。フォームへのトークン埋め込みは `test_every_post_form_carries_token` で、更新要求の検証は `verify_token` のHTTPテストで確認する。
 
 SQLは固定の文字列で書き、値はパラメーターで渡す。件数が変わる条件は、JSON配列を1つのパラメーターで渡して `json_each` で展開する。CIのsemgrepは、文字列を組み立てたSQLを指摘する。
 

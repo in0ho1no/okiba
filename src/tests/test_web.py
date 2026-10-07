@@ -373,11 +373,24 @@ class TestCsrf:
                 == 400
             )
 
-    @pytest.mark.parametrize('url', ['/items/new', '/categories', f'/categories/{CABLES_ID}', '/tags', '/containers'])
-    def test_every_post_form_carries_token(self, client: TestClient, url: str) -> None:
-        """前提: なし / 操作: フォームのある画面を開く / 期待: POSTのフォームすべてにトークンが埋め込まれている。"""
+    @pytest.mark.parametrize(
+        'url', ['/items/new', '/items/{id}', '/categories', f'/categories/{CABLES_ID}', '/tags', '/containers', '/containers/{id}']
+    )
+    def test_every_post_form_carries_token(self, client: TestClient, box: str, url: str) -> None:
+        """前提: 保管場所と写真付き物品 / 操作: フォームのある画面を開く / 期待: POSTフォームすべてにトークンがある。"""
         _post(client, '/tags', {'name': '既存タグ'})
-        html: str = client.get(url).text
+        if url == '/items/{id}':
+            item_id: str = _item_id(_post(client, '/items/new', _cable_form(box)))
+            upload: Response = _post(client, f'/items/{item_id}/photos', {}, files=[('photos', ('test.jpg', image_bytes(), 'image/jpeg'))])
+            assert upload.status_code == 200
+            url = url.format(id=item_id)
+        elif url == '/containers/{id}':
+            url = url.format(id=box)
+        response: Response = client.get(url)
+        assert response.status_code == 200
+        html: str = response.text
+        if '/items/' in url and url != '/items/new':
+            assert re.search(r'action="/photos/\d+/purpose"', html)
         forms: list[str] = re.findall(r'<form[^>]*method="post"[^>]*>.*?</form>', html, flags=re.DOTALL)
         assert forms
         token: str = client.cookies[CSRF_COOKIE]
