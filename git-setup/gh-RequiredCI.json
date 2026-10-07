@@ -30,6 +30,18 @@
           {
             "context": "gitleaks",
             "integration_id": 15368
+          },
+          {
+            "context": "lint",
+            "integration_id": 15368
+          },
+          {
+            "context": "test (ubuntu-latest)",
+            "integration_id": 15368
+          },
+          {
+            "context": "test (windows-latest)",
+            "integration_id": 15368
           }
         ]
       }
