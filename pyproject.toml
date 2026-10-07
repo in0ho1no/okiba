@@ -5,6 +5,12 @@ description = "Local-first personal inventory manager — track what's in which 
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.142.2",
+    "jinja2>=3.1.6",
+    "pillow>=12.3.0",
+    "pillow-heif>=1.8.0",
+    "python-multipart>=0.0.32",
+    "uvicorn>=0.54.0",
 ]
 
 [dependency-groups]
