@@ -41,6 +41,6 @@ def places(conn: sqlite3.Connection) -> Places:
 @pytest.fixture
 def client(settings: Settings) -> Iterator[TestClient]:
     """画面のHTTPテスト用クライアント。最初に画面を開き、CSRF対策のトークンをCookieで受け取っておく。"""
-    with TestClient(create_app(settings)) as test_client:
+    with TestClient(create_app(settings), base_url='http://127.0.0.1') as test_client:
         test_client.get('/')
         yield test_client

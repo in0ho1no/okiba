@@ -28,6 +28,13 @@ from okiba.web.common import Conn, category_selection, optional_int, redirect, r
 from okiba.web.csrf import verify_token
 
 router: APIRouter = APIRouter(dependencies=[Depends(verify_token)])
+SEARCH_PAGE_SIZE: int = 50
+
+
+def _page_url(params: QueryParams, page: int) -> str:
+    values: list[tuple[str, str]] = [(key, value) for key, value in params.multi_items() if key != 'page']
+    values.append(('page', str(page)))
+    return f'/?{urlencode(values)}'
 
 
 @router.get('/', response_class=HTMLResponse)
@@ -43,13 +50,25 @@ def search_page(request: Request, conn: Conn) -> HTMLResponse:
         tag_id=optional_int(params.get('tag_id')),
         statuses=statuses,
     )
+    total_count: int = items.count_items(conn, query)
+    total_pages: int = max(1, (total_count + SEARCH_PAGE_SIZE - 1) // SEARCH_PAGE_SIZE)
+    requested_page: int = optional_int(params.get('page')) or 1
+    page: int = min(max(requested_page, 1), total_pages)
+    results: list[items.ItemSummary] = items.search_items(conn, query, limit=SEARCH_PAGE_SIZE, offset=(page - 1) * SEARCH_PAGE_SIZE)
     return render(
         request,
         'search.html',
         {
             'nav': 'search',
             'query': query,
-            'results': items.search_items(conn, query),
+            'results': results,
+            'total_count': total_count,
+            'first_result': (page - 1) * SEARCH_PAGE_SIZE + 1 if total_count else 0,
+            'last_result': (page - 1) * SEARCH_PAGE_SIZE + len(results),
+            'page': page,
+            'total_pages': total_pages,
+            'previous_url': _page_url(params, page - 1) if page > 1 else None,
+            'next_url': _page_url(params, page + 1) if page < total_pages else None,
             'categories': catalog.list_categories(conn),
             'container_paths': containers.all_paths(conn),
             'tags': tags.list_tags(conn),
@@ -265,6 +284,8 @@ async def edit_item_submit(request: Request, conn: Conn, item_id: int) -> Respon
                 form, catalog.fields_for_category(conn, previous_category_id), catalog.fields_for_category(conn, form.category_id)
             )
         return render(request, 'item_form.html', _form_context(conn, form, errors, 'edit', item), status_code=422 if errors else 200)
+    if previous_category_id is not None and form.category_id is not None and previous_category_id != form.category_id:
+        move_unmatched_to_extras(form, catalog.fields_for_category(conn, previous_category_id), catalog.fields_for_category(conn, form.category_id))
     fields: list[Field] = _fields(conn, form)
     item_input: ItemInput
     parse_errors: dict[str, str]

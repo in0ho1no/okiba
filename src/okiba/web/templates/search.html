@@ -46,6 +46,13 @@
   </fieldset>
   <div class="actions"><button type="submit">検索</button></div>
 </form>
-<p class="muted">{{ results | length }}件</p>
+<p class="muted">全{{ total_count }}件{% if total_count %}（{{ first_result }}〜{{ last_result }}件目を表示）{% endif %}</p>
 {{ m.item_table(results) }}
+{% if total_pages > 1 %}
+  <nav class="actions" aria-label="検索結果のページ送り">
+    {% if previous_url %}<a href="{{ previous_url }}">前のページ</a>{% endif %}
+    <span>{{ page }} / {{ total_pages }}ページ</span>
+    {% if next_url %}<a href="{{ next_url }}">次のページ</a>{% endif %}
+  </nav>
+{% endif %}
 {% endblock %}

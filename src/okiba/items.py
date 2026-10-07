@@ -417,7 +417,25 @@ WHERE items.deleted = 0
       )
   )
 ORDER BY items.updated_at DESC, items.id DESC
-LIMIT :limit
+LIMIT :limit OFFSET :offset
+"""
+
+_COUNT_SQL: str = """
+SELECT count(*) FROM items
+WHERE items.deleted = 0
+  AND items.merged_into_id IS NULL
+  AND (:statuses IS NULL OR items.status IN (SELECT value FROM json_each(:statuses)))
+  AND (:category_id IS NULL OR items.category_id = :category_id
+       OR items.category_id IN (SELECT id FROM categories WHERE parent_id = :category_id))
+  AND (:container_ids IS NULL OR items.container_id IN (SELECT value FROM json_each(:container_ids)))
+  AND (:tag_id IS NULL OR EXISTS (SELECT 1 FROM item_tags WHERE item_tags.item_id = items.id AND item_tags.tag_id = :tag_id))
+  AND (:fts_query IS NULL OR items.id IN (SELECT rowid FROM item_search WHERE item_search MATCH :fts_query))
+  AND NOT EXISTS (
+      SELECT 1 FROM json_each(:like_patterns) AS term
+      WHERE NOT EXISTS (
+          SELECT 1 FROM item_search WHERE item_search.rowid = items.id AND item_search.body LIKE term.value ESCAPE '\\'
+      )
+  )
 """
 
 _CONTENTS_SQL: str = """
@@ -443,21 +461,30 @@ def _text_params(text: str) -> tuple[str | None, list[str]]:
     return (' '.join(phrases) or None), patterns
 
 
-def search_items(conn: sqlite3.Connection, query: SearchQuery, limit: int = 500) -> list[ItemSummary]:
-    """条件に合う物品を新しい順に返す。削除済み・統合済みの登録は含めない。"""
+def _search_params(conn: sqlite3.Connection, query: SearchQuery) -> dict[str, Any]:
     fts_query: str | None
     like_patterns: list[str]
     fts_query, like_patterns = _text_params(query.text)
     container_ids: list[int] | None = sorted(descendant_ids(conn, query.container_id)) if query.container_id is not None else None
-    params: dict[str, Any] = {
+    return {
         'statuses': json.dumps(list(query.statuses)) if query.statuses else None,
         'category_id': query.category_id,
         'container_ids': json.dumps(container_ids) if container_ids is not None else None,
         'tag_id': query.tag_id,
         'fts_query': fts_query,
         'like_patterns': json.dumps(like_patterns, ensure_ascii=False),
-        'limit': limit,
     }
+
+
+def count_items(conn: sqlite3.Connection, query: SearchQuery) -> int:
+    """検索条件に一致する物品の総件数を返す。"""
+    row: sqlite3.Row = conn.execute(_COUNT_SQL, _search_params(conn, query)).fetchone()
+    return int(row[0])
+
+
+def search_items(conn: sqlite3.Connection, query: SearchQuery, limit: int = 500, offset: int = 0) -> list[ItemSummary]:
+    """条件に合う物品を新しい順に返す。削除済み・統合済みの登録は含めない。"""
+    params: dict[str, Any] = {**_search_params(conn, query), 'limit': limit, 'offset': offset}
     rows: list[sqlite3.Row] = conn.execute(_SEARCH_SQL, params).fetchall()
     return _summaries(conn, rows)
 

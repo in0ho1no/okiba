@@ -3,6 +3,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from okiba import __version__
 from okiba.common import NotFoundError
@@ -21,6 +22,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app: FastAPI = FastAPI(title='Okiba', version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = resolved
     app.middleware('http')(issue_token)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=['127.0.0.1', 'localhost'])
     app.mount('/static', StaticFiles(directory=STATIC_DIR), name='static')
     app.mount('/media', StaticFiles(directory=resolved.photos_dir), name='media')
     app.include_router(item_views.router)

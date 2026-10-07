@@ -4,16 +4,20 @@
 """
 
 import re
+import sqlite3
+from html import unescape
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
 from httpx2 import Response
 
+from okiba import items
 from okiba.config import Settings
 from okiba.web.app import create_app
 from okiba.web.csrf import COOKIE_NAME as CSRF_COOKIE
 from okiba.web.csrf import FIELD_NAME as CSRF_FIELD
-from tests.helpers import BOOKS_ID, CABLES_ID, image_bytes
+from tests.helpers import BOOKS_ID, CABLES_ID, Places, book_input, image_bytes
 
 
 def _post(client: TestClient, url: str, data: dict[str, str], files: list[tuple[str, tuple[str, bytes, str]]] | None = None) -> Response:
@@ -194,6 +198,49 @@ class TestUpdateFlow:
         assert 'テンプレート外の項目' in response.text
         assert 'name="extra__length" type="text" value="1.8m"' in response.text
 
+    def test_saving_category_change_without_refresh_preserves_attributes(self, client: TestClient, conn: sqlite3.Connection, box: str) -> None:
+        """前提: ケーブルの編集フォーム / 操作: 表示を更新せず書籍カテゴリで保存する / 期待: 元の属性がテンプレート外に残る。"""
+        item_id: str = _item_id(_post(client, '/items/new', _cable_form(box)))
+        response: Response = _post(
+            client,
+            f'/items/{item_id}/edit',
+            {**_cable_form(box), 'major_id': str(BOOKS_ID), 'name': '転用した物', 'prev_category_id': str(CABLES_ID)},
+        )
+        assert response.status_code == 200
+        saved: items.ItemDetail = items.get_item(conn, int(item_id))
+        assert saved.category_id == BOOKS_ID
+        assert saved.attributes == {
+            'connector_a': 'HDMI',
+            'connector_b': 'DisplayPort',
+            'length': {'value': 1.8, 'unit': 'm'},
+        }
+        assert 'テンプレート外の項目' in response.text
+
+    def test_search_pages_show_total_and_preserve_filters(self, client: TestClient, conn: sqlite3.Connection, places: Places) -> None:
+        """前提: 同じ条件の書籍が51件 / 操作: 絞り込み検索から次のページへ進む / 期待: 総件数と全件の到達可能性を保つ。"""
+        for number in range(51):
+            items.register_item(conn, book_input(places.box_a1, title=f'検証書{number:03d}', isbn=''))
+        response: Response = client.get('/', params={'searched': '1', 'status': 'stored', 'category_id': str(BOOKS_ID), 'q': '検証書'})
+        assert response.status_code == 200
+        assert '全51件（1〜50件目を表示）' in response.text
+        assert len(re.findall(r'<td><a href="/items/\d+">', response.text)) == 50
+        match: re.Match[str] | None = re.search(r'<a href="([^"]+)">次のページ</a>', response.text)
+        assert match is not None
+        next_url: str = unescape(match.group(1))
+        assert parse_qs(urlparse(next_url).query) == {
+            'searched': ['1'],
+            'status': ['stored'],
+            'category_id': [str(BOOKS_ID)],
+            'q': ['検証書'],
+            'page': ['2'],
+        }
+        next_page: Response = client.get(next_url)
+        assert '全51件（51〜51件目を表示）' in next_page.text
+        assert len(re.findall(r'<td><a href="/items/\d+">', next_page.text)) == 1
+        assert '検証書000' in next_page.text
+        assert '前のページ' in next_page.text
+        assert '次のページ' not in next_page.text
+
     def test_move_item(self, client: TestClient, box: str) -> None:
         """前提: 箱A-01のケーブルと押入れ / 操作: 押入れへ移動する / 期待: 保管場所が変わる。"""
         item_id: str = _item_id(_post(client, '/items/new', _cable_form(box)))
@@ -282,7 +329,7 @@ class TestCsrf:
 
     def test_cookie_is_http_only_and_same_site_strict(self, settings: Settings) -> None:
         """前提: Cookieなし / 操作: 画面を開く / 期待: スクリプトから読めず、別サイトからの送信に付かないCookieでトークンが配られる。"""
-        with TestClient(create_app(settings)) as fresh:
+        with TestClient(create_app(settings), base_url='http://127.0.0.1') as fresh:
             header: str = fresh.get('/').headers['set-cookie']
         assert header.startswith(f'{CSRF_COOKIE}=')
         assert 'HttpOnly' in header
@@ -307,10 +354,24 @@ class TestCsrf:
     def test_same_origin_post_with_token_is_accepted(self, client: TestClient) -> None:
         """前提: なし / 操作: 同じオリジンから正しいトークンで送信する / 期待: 受け付けられる。"""
         response: Response = client.post(
-            '/tags', data={'name': 'タグ', CSRF_FIELD: client.cookies[CSRF_COOKIE]}, headers={'origin': 'http://testserver'}
+            '/tags', data={'name': 'タグ', CSRF_FIELD: client.cookies[CSRF_COOKIE]}, headers={'origin': 'http://127.0.0.1'}
         )
         assert response.status_code == 200
         assert self._tag_count(client) == 1
+
+    def test_untrusted_host_is_rejected_before_cookie_or_routes(self, settings: Settings) -> None:
+        """前提: 外部ドメイン名をHostにしたアクセス / 操作: 閲覧・任意Cookie付き更新・静的ファイル取得 / 期待: すべて拒否する。"""
+        with TestClient(create_app(settings), base_url='http://attacker.example') as foreign:
+            token: str = 'A' * 43
+            foreign.cookies.set(CSRF_COOKIE, token)
+            rejected: Response = foreign.get('/')
+            assert rejected.status_code == 400
+            assert 'set-cookie' not in rejected.headers
+            assert foreign.get('/static/style.css').status_code == 400
+            assert (
+                foreign.post('/tags', data={'name': '不正なタグ', CSRF_FIELD: token}, headers={'origin': 'http://attacker.example'}).status_code
+                == 400
+            )
 
     @pytest.mark.parametrize('url', ['/items/new', '/categories', f'/categories/{CABLES_ID}', '/tags', '/containers'])
     def test_every_post_form_carries_token(self, client: TestClient, url: str) -> None:
