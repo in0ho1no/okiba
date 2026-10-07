@@ -47,3 +47,16 @@ def test_cable_name_is_generated_from_attributes(self, conn, places) -> None:
 - 各テストは一時フォルダに新しいDBを作るため、実データには触れない。
 - 仕様を変更・追加したときは、対応するテストを先に追加または修正する。
 - 依存パッケージを更新したときは、`uv run pytest` がすべて通ることを確認する。
+
+## CI
+
+`.github/workflows/test.yml` が、`develop` へのpushとプルリクエストで次を実行する。
+
+| ジョブ | 内容 |
+| --- | --- |
+| `lint` | `uv sync --locked`、ruff（lint・format確認）、mypy、pyright |
+| `test (ubuntu-latest)` / `test (windows-latest)` | `uv sync --locked` と pytest |
+
+- `uv sync --locked` は、`uv.lock` が `pyproject.toml` と食い違うと失敗する。依存を変えたら `uv.lock` も一緒にコミットする。
+- Dependabot が毎週、Pythonの依存（`uv`）の更新PRを `develop` 向けに作る。開発用ツールの更新は1つのPRにまとめる。CIが通れば、更新でデグレしていないと判断できる。
+- 必須チェックの設定は `git-setup/gh-RequiredCI.json` にある。GitHubへの反映は `git-setup/gh-enable-push-protection-win.bat` で行う。
