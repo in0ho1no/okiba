@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m %}
+{% block title %}{{ path }}{% endblock %}
+{% block content %}
+<p><a href="/categories">カテゴリ一覧</a></p>
+<h1>{{ path }}</h1>
+
+<form method="post" action="/categories/{{ category.id }}/rename" class="inline-form">
+  <label for="rename">カテゴリ名</label>
+  <input id="rename" name="name" type="text" value="{{ category.name }}">
+  <button type="submit">名称を変更</button>
+</form>
+{{ m.error(errors, 'name') }}
+
+{% if inherited %}
+  <h2>大カテゴリから引き継ぐ項目</h2>
+  <ul>{% for f in inherited %}<li>{{ f.label }}（{{ f.type_label }}）</li>{% endfor %}</ul>
+{% endif %}
+
+<h2>このカテゴリの項目</h2>
+<p class="hint">内部キー・型・識別子の種類は作成後に変更できません。変えたい場合は別の項目を追加してください。</p>
+{% if fields %}
+  <table class="fields">
+    <thead><tr><th>表示名</th><th>内部キー</th><th>型</th><th>表示順</th><th>必須</th><th>複製時クリア</th><th>重複判定</th><th></th></tr></thead>
+    <tbody>
+      {% for f in fields %}
+        <tr>
+          <td>
+            <input form="field-{{ f.id }}" name="label" type="text" value="{{ f.label }}" aria-label="表示名">
+            {{ m.error(errors, 'field' ~ f.id ~ '_label') }}
+          </td>
+          <td><code>{{ f.key }}</code></td>
+          <td>{{ f.type_label }}{% if f.unit_kind %}（{{ UNIT_KINDS[f.unit_kind] }}）{% endif %}{% if f.identifier_kind %}／{{ IDENTIFIER_KINDS[f.identifier_kind] }}{% endif %}</td>
+          <td><input form="field-{{ f.id }}" name="sort_order" type="text" inputmode="numeric" value="{{ f.sort_order }}" class="tiny" aria-label="表示順"></td>
+          <td><input form="field-{{ f.id }}" name="required" type="checkbox" {{ 'checked' if f.required }} aria-label="必須"></td>
+          <td><input form="field-{{ f.id }}" name="clear_on_copy" type="checkbox" {{ 'checked' if f.clear_on_copy }} aria-label="複製時クリア"></td>
+          <td><input form="field-{{ f.id }}" name="dedupe" type="checkbox" {{ 'checked' if f.dedupe }} aria-label="重複判定"></td>
+          <td><form id="field-{{ f.id }}" method="post" action="/fields/{{ f.id }}"><button type="submit">更新</button></form></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="muted">項目はまだありません。</p>
+{% endif %}
+
+<h2>項目を追加</h2>
+<form method="post" action="/categories/{{ category.id }}/fields" class="stack">
+  <div class="field-grid">
+    <div class="field">
+      <label for="label">表示名</label>
+      <input id="label" name="label" type="text">
+      {{ m.error(errors, 'new_label') }}
+    </div>
+    <div class="field">
+      <label for="field_type">型</label>
+      <select id="field_type" name="field_type">
+        {% for code, label in FIELD_TYPES.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+      </select>
+      {{ m.error(errors, 'new_field_type') }}
+    </div>
+    <div class="field">
+      <label for="unit_kind">単位の種類（数値＋単位のみ）</label>
+      <select id="unit_kind" name="unit_kind">
+        <option value="">なし</option>
+        {% for code, label in UNIT_KINDS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+      </select>
+      {{ m.error(errors, 'new_unit_kind') }}
+    </div>
+    <div class="field">
+      <label for="identifier_kind">識別子の種類（識別コードの項目のみ）</label>
+      <select id="identifier_kind" name="identifier_kind">
+        <option value="">なし</option>
+        {% for code, label in IDENTIFIER_KINDS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+      </select>
+      {{ m.error(errors, 'new_identifier_kind') }}
+    </div>
+    <div class="field">
+      <label for="key">内部キー（省略可）</label>
+      <input id="key" name="key" type="text" placeholder="例：connector_a">
+      {{ m.error(errors, 'new_key') }}
+    </div>
+    <div class="field">
+      <label for="sort_order">表示順（省略可）</label>
+      <input id="sort_order" name="sort_order" type="text" inputmode="numeric" class="short">
+    </div>
+  </div>
+  <div>
+    <label class="check"><input type="checkbox" name="required"> 必須</label>
+    <label class="check"><input type="checkbox" name="clear_on_copy"> 複製時にクリア</label>
+    <label class="check"><input type="checkbox" name="dedupe"> 重複判定に使う</label>
+  </div>
+  <button type="submit">追加</button>
+</form>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m %}
+{% block title %}検索・更新{% endblock %}
+{% block content %}
+<h1>検索・更新</h1>
+<form method="get" action="/" class="search-form">
+  <input type="hidden" name="searched" value="1">
+  <div class="field grow">
+    <label for="q">キーワード</label>
+    <div class="input-row">
+      <input id="q" type="search" name="q" value="{{ query.text }}" placeholder="名称・備考・属性・ISBNなど">
+      {{ m.clear_button('q') }}
+    </div>
+  </div>
+  <div class="field">
+    <label for="category_id">カテゴリ</label>
+    <select id="category_id" name="category_id">
+      <option value="">すべて</option>
+      {% for c in categories if c.parent_id is none %}
+        <option value="{{ c.id }}" {{ 'selected' if query.category_id == c.id }}>{{ c.name }}</option>
+        {% for child in categories if child.parent_id == c.id %}
+          <option value="{{ child.id }}" {{ 'selected' if query.category_id == child.id }}>{{ c.name }} › {{ child.name }}</option>
+        {% endfor %}
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="container_id">保管場所（配下を含む）</label>
+    <select id="container_id" name="container_id">
+      <option value="">すべて</option>
+      {% for c, path in container_paths %}<option value="{{ c.id }}" {{ 'selected' if query.container_id == c.id }}>{{ path }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="tag_id">タグ</label>
+    <select id="tag_id" name="tag_id">
+      <option value="">すべて</option>
+      {% for t in tags %}<option value="{{ t.id }}" {{ 'selected' if query.tag_id == t.id }}>{{ t.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <fieldset class="field">
+    <legend>状態</legend>
+    {% for code, label in STATUS_LABELS.items() %}
+      <label class="check"><input type="checkbox" name="status" value="{{ code }}" {{ 'checked' if code in query.statuses }}> {{ label }}</label>
+    {% endfor %}
+  </fieldset>
+  <div class="actions"><button type="submit">検索</button></div>
+</form>
+<p class="muted">{{ results | length }}件</p>
+{{ m.item_table(results) }}
+{% endblock %}

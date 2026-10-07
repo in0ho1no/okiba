@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m %}
+{% block title %}{{ item.name }}{% endblock %}
+{% block content %}
+<h1>{{ item.name }}</h1>
+<p class="actions">
+  <a class="button" href="/items/{{ item.id }}/edit">内容の修正</a>
+  <a class="button secondary" href="/items/new?copy_from={{ item.id }}">この内容で複製登録</a>
+</p>
+
+<section>
+  <h2>基本情報</h2>
+  <dl class="props">
+    <dt>{{ item.name_label }}</dt><dd>{{ item.name }}</dd>
+    <dt>カテゴリ</dt><dd>{{ item.category_path }}</dd>
+    <dt>数量</dt><dd>{{ item.quantity }}</dd>
+    <dt>状態</dt><dd><span class="status status-{{ item.status }}">{{ item.status_label }}</span></dd>
+    <dt>{{ '戻し先' if item.is_return_target else '保管場所' }}</dt>
+    <dd>{% if item.container_id %}<a href="/containers/{{ item.container_id }}">{{ item.location }}</a>{% else %}<span class="muted">なし</span>{% endif %}</dd>
+    {% for label, value in template_values %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}
+    {% for kind, value in item.identifiers.items() %}<dt>{{ IDENTIFIER_KINDS[kind] }}</dt><dd>{{ value }}</dd>{% endfor %}
+    <dt>タグ</dt><dd>{{ item.tags | join('、') }}</dd>
+    <dt>備考</dt><dd class="pre">{{ item.note }}</dd>
+  </dl>
+  {% if extras %}
+    <h3>テンプレート外の項目</h3>
+    <dl class="props">{% for label, value in extras %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>
+  {% endif %}
+</section>
+
+{% if item.status in ('stored', 'in_use', 'lent') %}
+<section>
+  <h2>移動</h2>
+  <form method="post" action="/items/{{ item.id }}/move" class="inline-form">
+    <label for="move-container">{{ '新しい戻し先' if item.is_return_target else '移動先' }}</label>
+    <select id="move-container" name="container_id">
+      <option value="">選んでください</option>
+      {% for c, path in container_paths %}<option value="{{ c.id }}" {{ 'selected' if item.container_id == c.id }}>{{ path }}</option>{% endfor %}
+    </select>
+    <button type="submit">移動</button>
+  </form>
+  {{ m.error(errors, 'container_id') }}
+</section>
+{% endif %}
+
+<section>
+  <h2>写真</h2>
+  {{ m.photo_list(photos, item.name) }}
+  {{ m.photo_upload('/items/' ~ item.id ~ '/photos', errors) }}
+</section>
+
+<section>
+  <h2>変更履歴</h2>
+  {{ m.event_list(events) }}
+</section>
+{% endblock %}

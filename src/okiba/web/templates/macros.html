@@ -1,0 +1,122 @@
+{% macro error(errors, name) -%}
+  {% if errors.get(name) %}<p class="error" role="alert">{{ errors[name] }}</p>{% endif %}
+{%- endmacro %}
+
+{% macro clear_button(target) -%}
+  <button type="button" class="clear" data-clear="{{ target }}" aria-label="入力をクリア" title="クリア">×</button>
+{%- endmacro %}
+
+{% macro field_input(f, form, errors, suggestions) -%}
+  {% set name = 'attr__' ~ f.key %}
+  {% set input_id = 'f-' ~ f.key %}
+  {% set value = form.values.get(f.key, '') %}
+  <div class="field{{ ' has-error' if errors.get(name) }}">
+    <label for="{{ input_id }}">{{ f.label }}
+      {% if f.required %}<span class="badge req">必須</span>{% endif %}
+      {% if f.identifier_kind %}<span class="badge" title="{{ IDENTIFIER_KINDS[f.identifier_kind] }}">識別コード</span>{% endif %}
+    </label>
+    <div class="input-row">
+      {% if f.field_type == 'bool' %}
+        <select id="{{ input_id }}" name="{{ name }}">
+          <option value="" {{ 'selected' if value == '' }}>未入力</option>
+          <option value="true" {{ 'selected' if value == 'true' }}>はい</option>
+          <option value="false" {{ 'selected' if value == 'false' }}>いいえ</option>
+        </select>
+      {% elif f.field_type == 'measure' %}
+        {% set unit = form.unit(f.key) or 'm' %}
+        <input id="{{ input_id }}" name="{{ name }}" type="text" inputmode="decimal" value="{{ value }}" class="short">
+        <select name="{{ name }}__unit" aria-label="{{ f.label }}の単位">
+          {% for u in UNITS[f.unit_kind] %}<option value="{{ u }}" {{ 'selected' if u == unit }}>{{ u }}</option>{% endfor %}
+        </select>
+      {% elif f.field_type == 'date' %}
+        <input id="{{ input_id }}" name="{{ name }}" type="date" value="{{ value }}">
+      {% elif f.field_type == 'number' %}
+        <input id="{{ input_id }}" name="{{ name }}" type="text" inputmode="decimal" value="{{ value }}" class="short">
+      {% else %}
+        <input id="{{ input_id }}" name="{{ name }}" type="text" value="{{ value }}"{% if f.field_type == 'suggest' %} list="dl-{{ f.key }}" autocomplete="off"{% endif %}>
+        {% if f.field_type == 'suggest' %}
+          <datalist id="dl-{{ f.key }}">{% for s in suggestions.get(f.key, []) %}<option value="{{ s }}">{% endfor %}</datalist>
+        {% endif %}
+      {% endif %}
+      {% if f.field_type != 'bool' %}{{ clear_button(input_id) }}{% endif %}
+    </div>
+    {{ error(errors, name) }}
+  </div>
+{%- endmacro %}
+
+{% macro photo_list(photos, owner_label) -%}
+  {% if photos %}
+    <ul class="photos">
+      {% for p in photos %}
+        <li class="photo">
+          <a href="/media/{{ p.display_path }}" target="_blank" rel="noopener"><img src="/media/{{ p.thumb_path }}" alt="{{ owner_label }}の写真（{{ p.purpose or '用途未設定' }}）" loading="lazy"></a>
+          <form method="post" action="/photos/{{ p.id }}/purpose" class="inline">
+            <input type="text" name="purpose" value="{{ p.purpose }}" list="dl-purposes" aria-label="用途" class="short">
+            <button type="submit">用途を変更</button>
+          </form>
+          <form method="post" action="/photos/{{ p.id }}/detach" class="inline">
+            <button type="submit" class="secondary">紐付けを解除</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">写真はありません。</p>
+  {% endif %}
+  <datalist id="dl-purposes">{% for s in PURPOSE_SUGGESTIONS %}<option value="{{ s }}">{% endfor %}</datalist>
+{%- endmacro %}
+
+{% macro photo_upload(action, errors) -%}
+  <form method="post" action="{{ action }}" enctype="multipart/form-data" class="stack">
+    <div class="field">
+      <label for="photo-files">写真を追加</label>
+      <input id="photo-files" type="file" name="photos" multiple accept="image/*,.heic,.heif">
+      {{ error(errors, 'photo') }}
+    </div>
+    <div class="field">
+      <label for="photo-purpose">用途</label>
+      <input id="photo-purpose" type="text" name="photo_purpose" list="dl-purposes" class="short">
+    </div>
+    <button type="submit">取り込む</button>
+  </form>
+{%- endmacro %}
+
+{% macro event_list(events) -%}
+  {% if events %}
+    <ol class="events">
+      {% for e in events %}
+        <li>
+          <time>{{ e.created_at }}</time>
+          <span class="badge">{{ e.label }}</span>
+          {% set changes = event_changes(e) %}
+          {% if changes %}<span class="muted">{{ changes | join('・') }}</span>{% endif %}
+          {% if e.memo %}<span>{{ e.memo }}</span>{% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p class="muted">変更履歴はありません。</p>
+  {% endif %}
+{%- endmacro %}
+
+{% macro item_table(rows, empty_message='該当する物品はありません。') -%}
+  {% if rows %}
+    <table class="items">
+      <thead><tr><th>名称</th><th>カテゴリ</th><th class="num">数量</th><th>状態</th><th>所在</th><th>タグ</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td><a href="/items/{{ r.id }}">{{ r.name }}</a></td>
+            <td>{{ r.category_path }}</td>
+            <td class="num">{{ r.quantity }}</td>
+            <td><span class="status status-{{ r.status }}">{{ r.status_label }}</span></td>
+            <td>{% if r.location %}{% if r.is_return_target %}<span class="badge">戻し先</span> {% endif %}{{ r.location }}{% endif %}</td>
+            <td>{{ r.tags | join('、') }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">{{ empty_message }}</p>
+  {% endif %}
+{%- endmacro %}

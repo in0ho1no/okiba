@@ -42,6 +42,8 @@ Desktop.ini
 # Markdown export artifacts
 /**/*.html
 /**/*.pdf
+# アプリの画面テンプレートは管理対象にする
+!/src/okiba/web/templates/**/*.html
 
 ###############################################################################
 # END TEMPLATE: markdown-template
