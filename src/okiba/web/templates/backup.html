@@ -34,7 +34,7 @@
     <ul>{% for path in summary.damaged[:10] %}<li><code>{{ path }}</code></li>{% endfor %}</ul>
   {% endif %}
   {% if summary.skipped %}
-    <p class="hint">壊れていた閲覧用画像・縮小版 {{ summary.skipped | length }} 件はzipに含めていません。復元後の起動時に元画像から作り直されます。</p>
+    <p class="hint">壊れていた閲覧用画像・縮小版 {{ summary.skipped | length }} 件はzipに含めていません。元画像を読み込める写真については、復元後の起動時に作り直されます。</p>
   {% endif %}
   <dl class="props">
     <dt>ファイル</dt><dd>{{ summary.path }}</dd>
