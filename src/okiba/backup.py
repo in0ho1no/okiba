@@ -38,7 +38,8 @@ class BackupError(Exception):
 class BackupSummary:
     """検証済みのバックアップの内容。
 
-    unreadable は画像として読み込めない元画像、unviewable はそのうち閲覧用画像か縮小版も使えず、復元後に表示できない写真の元画像。
+    unreadable は画像として読み込めない元画像、unviewable は復元後に表示できない写真の元画像。
+    skipped は写真フォルダで壊れていたためzipに入れなかった閲覧用画像・縮小版で、復元後の起動時に元画像から作り直される。
     """
 
     path: Path
@@ -51,6 +52,7 @@ class BackupSummary:
     file_count: int
     unreadable: tuple[str, ...] = ()
     unviewable: tuple[str, ...] = ()
+    skipped: tuple[str, ...] = ()
 
     @property
     def complete(self) -> bool:
@@ -138,6 +140,23 @@ def _photo_files(photos_dir: Path) -> list[str]:
     return files
 
 
+def _exclude_broken_derived(photos_dir: Path, photo_files: list[str]) -> tuple[list[str], list[str]]:
+    """（zipに入れる画像, 壊れていて入れない閲覧用画像・縮小版）を返す。
+
+    壊れた閲覧用画像・縮小版をzipに入れると、復元後の起動時に「存在する」ため作り直されず、写真を表示できない。
+    入れなければ、元画像から作り直される。元画像は壊れていても元のまま入れる。
+    """
+    included: list[str] = []
+    skipped: list[str] = []
+    for relative in photo_files:
+        is_derived: bool = relative.startswith(('display/', 'thumbs/'))
+        if is_derived and not is_readable_image((photos_dir / relative).read_bytes()):
+            skipped.append(relative)
+        else:
+            included.append(relative)
+    return included, skipped
+
+
 def _manifest(db_copy: Path, created_at: str) -> dict[str, Any]:
     conn: sqlite3.Connection = sqlite3.connect(db_copy)
     try:
@@ -190,9 +209,10 @@ def _check_database(archive: zipfile.ZipFile, manifest: dict[str, Any], names: s
 
 
 def _check_images(archive: zipfile.ZipFile, names: set[str], photo_paths: list[tuple[str, str, str]]) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """（画像として読み込めない元画像, そのうち閲覧用画像か縮小版も使えず復元後に表示できない元画像）を返す。
+    """（画像として読み込めない元画像, 復元後に表示できない写真の元画像）を返す。
 
-    元画像が読み込めれば、閲覧用画像と縮小版は起動時に作り直せるため、zipになくても表示できる。
+    元画像が読み込めれば、zipにない閲覧用画像と縮小版は起動時に作り直せる。
+    ただし壊れた閲覧用画像・縮小版がzipに入っていると、起動時に作り直されないため表示できない。
     """
     readable: dict[str, bool] = {}
 
@@ -206,6 +226,8 @@ def _check_images(archive: zipfile.ZipFile, names: set[str], photo_paths: list[t
     unviewable: set[str] = set()
     for original, display, thumb in photo_paths:
         if is_readable(original):
+            if any(PHOTOS_PREFIX + derived in names and not is_readable(derived) for derived in (display, thumb)):
+                unviewable.add(original)
             continue
         unreadable.add(original)
         if not (is_readable(display) and is_readable(thumb)):
@@ -281,7 +303,10 @@ def create_backup(db_path: Path, photos_dir: Path, destination: str, now: dateti
             db_copy: Path = Path(work) / DB_NAME
             _copy_database(db_path, db_copy)
             manifest: dict[str, Any] = _manifest(db_copy, created.isoformat(timespec='seconds'))
-            _write_zip(partial, db_copy, photos_dir, _photo_files(photos_dir), manifest)
+            included: list[str]
+            skipped: list[str]
+            included, skipped = _exclude_broken_derived(photos_dir, _photo_files(photos_dir))
+            _write_zip(partial, db_copy, photos_dir, included, manifest)
         summary: BackupSummary = verify_backup(partial)
         if not summary.complete:
             final = incomplete
@@ -292,4 +317,4 @@ def create_backup(db_path: Path, photos_dir: Path, destination: str, now: dateti
     except BaseException:
         partial.unlink(missing_ok=True)
         raise
-    return replace(summary, path=final)
+    return replace(summary, path=final, skipped=tuple(skipped))

@@ -26,12 +26,15 @@
     <p>書き出したzipを開き直し、DBの整合性と、すべての写真を復元後に表示できること（元画像が読み込めるか、閲覧用画像と縮小版が入っていること）を確認しました。</p>
   {% else %}
     <h2 class="error">不完全なバックアップです</h2>
-    <p class="error" role="alert">復元しても表示できない写真が {{ summary.unviewable | length }} 件あります。元画像が読み込めず、閲覧用画像か縮小版も使えません。完成したバックアップと区別するため、名前に「-incomplete」を付けて残しました。</p>
+    <p class="error" role="alert">復元しても表示できない写真が {{ summary.unviewable | length }} 件あります。閲覧用画像か縮小版が使えず、元画像からも作り直せません。完成したバックアップと区別するため、名前に「-incomplete」を付けて残しました。</p>
     <ul>{% for path in summary.unviewable[:10] %}<li><code>{{ path }}</code></li>{% endfor %}</ul>
   {% endif %}
   {% if summary.damaged %}
     <p class="error">元画像が読み込めない写真が {{ summary.damaged | length }} 件あります。閲覧用画像が入っているため復元後も表示できますが、元の画像フォルダでも壊れている可能性があります。</p>
     <ul>{% for path in summary.damaged[:10] %}<li><code>{{ path }}</code></li>{% endfor %}</ul>
+  {% endif %}
+  {% if summary.skipped %}
+    <p class="hint">壊れていた閲覧用画像・縮小版 {{ summary.skipped | length }} 件はzipに含めていません。復元後の起動時に元画像から作り直されます。</p>
   {% endif %}
   <dl class="props">
     <dt>ファイル</dt><dd>{{ summary.path }}</dd>

@@ -123,6 +123,43 @@ class TestCreateBackup:
         assert summary.complete
         assert (summary.unreadable, summary.unviewable) == ((), ())
 
+    def test_broken_display_images_are_left_out_and_regenerated(
+        self, conn: sqlite3.Connection, settings: Settings, stocked: dict[str, int], tmp_path: Path
+    ) -> None:
+        """前提: 閲覧用画像と縮小版だけ壊れた写真 / 操作: バックアップして復元する / 期待: 壊れた物はzipに入らず完成扱いで、復元後に作り直される。"""
+        photo: photos.Photo = photos.get_photo(conn, stocked['kept_photo'])
+        _truncate(settings.photos_dir / photo.display_path)
+        _truncate(settings.photos_dir / photo.thumb_path)
+        summary: BackupSummary = _backup(settings, tmp_path / 'out')
+        assert summary.complete
+        assert summary.skipped == (photo.display_path, photo.thumb_path)
+        restored: Path = tmp_path / 'restored'
+        with zipfile.ZipFile(summary.path) as archive:
+            assert 'photos/' + photo.display_path not in archive.namelist()
+            archive.extractall(restored)
+        restored_conn: sqlite3.Connection = connect(restored / 'okiba.sqlite3')
+        try:
+            photos.regenerate_missing_images(restored_conn, restored / 'photos')
+        finally:
+            restored_conn.close()
+        assert photos.is_readable_image((restored / 'photos' / photo.display_path).read_bytes())
+        assert photos.is_readable_image((restored / 'photos' / photo.thumb_path).read_bytes())
+
+    def test_verify_rejects_broken_display_image_in_zip(
+        self, conn: sqlite3.Connection, settings: Settings, stocked: dict[str, int], tmp_path: Path
+    ) -> None:
+        """前提: 元画像は正常だが、壊れた閲覧用画像が入ったzip / 操作: 検証する / 期待: 作り直されないため表示できない写真として不完全になる。"""
+        photo: photos.Photo = photos.get_photo(conn, stocked['kept_photo'])
+        source: Path = _backup(settings, tmp_path / 'out').path
+        tampered: Path = tmp_path / 'tampered.zip'
+        with zipfile.ZipFile(source) as original, zipfile.ZipFile(tampered, 'w') as copy:
+            for name in original.namelist():
+                content: bytes = original.read(name)
+                copy.writestr(name, content[:200] if name == 'photos/' + photo.display_path else content)
+        summary: BackupSummary = verify_backup(tampered)
+        assert not summary.complete
+        assert (summary.unreadable, summary.unviewable) == ((), (photo.original_path,))
+
     def test_readable_originals_are_not_reported(self, settings: Settings, stocked: dict[str, int], tmp_path: Path) -> None:
         """前提: 元画像がすべて正常 / 操作: バックアップする / 期待: 完成扱いで、読み込めない元画像はない。"""
         summary: BackupSummary = _backup(settings, tmp_path / 'out')
