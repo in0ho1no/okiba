@@ -70,6 +70,27 @@ class TestCreateBackup:
             create_backup(settings.db_path, settings.photos_dir, destination.format(tmp=tmp_path))
         assert set(error.value.errors) == {'destination'}
 
+    @pytest.mark.parametrize('subfolder', ['', 'originals', 'originals/ab'], ids=['写真フォルダ', '元画像フォルダ', 'その配下'])
+    def test_destination_inside_photos_folder_is_rejected(self, settings: Settings, conn: sqlite3.Connection, subfolder: str) -> None:
+        """前提: なし / 操作: 写真フォルダとその配下を出力先にする / 期待: 前回のzipが次に入らないよう、出力先の入力エラーになる。"""
+        destination: Path = settings.photos_dir / subfolder
+        destination.mkdir(parents=True, exist_ok=True)
+        with pytest.raises(ValidationError) as error:
+            create_backup(settings.db_path, settings.photos_dir, str(destination))
+        assert '写真フォルダの中' in error.value.errors['destination']
+
+    def test_unreadable_original_is_reported_but_backup_completes(self, settings: Settings, stocked: dict[str, int], tmp_path: Path) -> None:
+        """前提: 画像フォルダの元画像1つが壊れている / 操作: バックアップする / 期待: zipは完成し、読み込めない元画像として示される。"""
+        original: Path = next((settings.photos_dir / 'originals').rglob('*.jpg'))
+        original.write_bytes(original.read_bytes()[:200])
+        summary: BackupSummary = _backup(settings, tmp_path / 'out')
+        assert summary.path.is_file()
+        assert summary.unreadable == (original.relative_to(settings.photos_dir).as_posix(),)
+
+    def test_readable_originals_are_not_reported(self, settings: Settings, stocked: dict[str, int], tmp_path: Path) -> None:
+        """前提: 元画像がすべて正常 / 操作: バックアップする / 期待: 読み込めない元画像はない。"""
+        assert _backup(settings, tmp_path / 'out').unreadable == ()
+
     def test_same_second_backup_does_not_overwrite(self, settings: Settings, conn: sqlite3.Connection, tmp_path: Path) -> None:
         """前提: 同じ日時のバックアップが既にある / 操作: もう一度バックアップする / 期待: 上書きせずに拒否される。"""
         _backup(settings, tmp_path / 'out')

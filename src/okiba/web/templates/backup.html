@@ -22,7 +22,11 @@
 {% if summary %}
 <section>
   <h2>バックアップを作成しました</h2>
-  <p>書き出したzipを開き直し、DB・変更履歴・写真を参照できることを確認済みです。</p>
+  <p>書き出したzipを開き直し、DBの整合性と、写真の元画像がすべて入っていて画像として読み込めるかを確認しました。</p>
+  {% if summary.unreadable %}
+    <p class="error" role="alert">画像として読み込めない元画像が {{ summary.unreadable | length }} 件あります。元の画像フォルダでも壊れている可能性があります（バックアップには元のまま入っています）。</p>
+    <ul>{% for path in summary.unreadable[:10] %}<li><code>{{ path }}</code></li>{% endfor %}</ul>
+  {% endif %}
   <dl class="props">
     <dt>ファイル</dt><dd>{{ summary.path }}</dd>
     <dt>作成日時</dt><dd>{{ summary.created_at }}</dd>

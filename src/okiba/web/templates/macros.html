@@ -44,12 +44,13 @@
   </div>
 {%- endmacro %}
 
-{% macro photo_list(photos, owner_label) -%}
+{% macro photo_list(photos, owner_label, editable=true) -%}
   {% if photos %}
     <ul class="photos">
       {% for p in photos %}
         <li class="photo">
           <a href="/media/{{ p.display_path }}" target="_blank" rel="noopener"><img src="/media/{{ p.thumb_path }}" alt="{{ owner_label }}の写真（{{ p.purpose or '用途未設定' }}）" loading="lazy"></a>
+          {% if editable %}
           <form method="post" action="/photos/{{ p.id }}/purpose" class="inline"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
             <input type="text" name="purpose" value="{{ p.purpose }}" list="dl-purposes" aria-label="用途" class="short">
             <button type="submit">用途を変更</button>
@@ -57,6 +58,9 @@
           <form method="post" action="/photos/{{ p.id }}/detach" class="inline"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
             <button type="submit" class="secondary">紐付けを解除</button>
           </form>
+          {% else %}
+          <span class="muted">{{ p.purpose or '用途未設定' }}</span>
+          {% endif %}
         </li>
       {% endfor %}
     </ul>

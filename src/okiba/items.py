@@ -422,7 +422,7 @@ _SEARCH_SQL: str = """
 SELECT items.* FROM items
 WHERE (items.deleted = 0 OR :include_deleted = 1)
   AND items.merged_into_id IS NULL
-  AND (:statuses IS NULL OR items.status IN (SELECT value FROM json_each(:statuses)))
+  AND (:statuses IS NULL OR items.status IN (SELECT value FROM json_each(:statuses)) OR (:include_deleted = 1 AND items.deleted = 1))
   AND (:category_id IS NULL OR items.category_id = :category_id
        OR items.category_id IN (SELECT id FROM categories WHERE parent_id = :category_id))
   AND (:container_ids IS NULL OR items.container_id IN (SELECT value FROM json_each(:container_ids)))
@@ -442,7 +442,7 @@ _COUNT_SQL: str = """
 SELECT count(*) FROM items
 WHERE (items.deleted = 0 OR :include_deleted = 1)
   AND items.merged_into_id IS NULL
-  AND (:statuses IS NULL OR items.status IN (SELECT value FROM json_each(:statuses)))
+  AND (:statuses IS NULL OR items.status IN (SELECT value FROM json_each(:statuses)) OR (:include_deleted = 1 AND items.deleted = 1))
   AND (:category_id IS NULL OR items.category_id = :category_id
        OR items.category_id IN (SELECT id FROM categories WHERE parent_id = :category_id))
   AND (:container_ids IS NULL OR items.container_id IN (SELECT value FROM json_each(:container_ids)))
@@ -502,7 +502,10 @@ def count_items(conn: sqlite3.Connection, query: SearchQuery) -> int:
 
 
 def search_items(conn: sqlite3.Connection, query: SearchQuery, limit: int = 500, offset: int = 0) -> list[ItemSummary]:
-    """条件に合う物品を新しい順に返す。統合済みの登録と、指定がなければ削除済みの登録は含めない。"""
+    """条件に合う物品を新しい順に返す。統合済みの登録と、指定がなければ削除済みの登録は含めない。
+
+    削除済みの登録を含める場合、削除済みの登録には状態の絞り込みをかけない。復元する物を、削除時の状態によらず探せるようにするため。
+    """
     params: dict[str, Any] = {**_search_params(conn, query), 'limit': limit, 'offset': offset}
     rows: list[sqlite3.Row] = conn.execute(_SEARCH_SQL, params).fetchall()
     return _summaries(conn, rows)

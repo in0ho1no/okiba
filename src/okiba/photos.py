@@ -204,6 +204,8 @@ def _update_photo(conn: sqlite3.Connection, photo_id: int, sql: str, params: tup
     target_type, target_id = _target(photo.item_id, photo.container_id)
     with transaction(conn):
         before: dict[str, Any] = _snapshot(conn, target_type, target_id)
+        if before.get('deleted'):
+            raise ValidationError({'photo': '削除済みの登録の写真は変更できません。先に復元してください。'})
         conn.execute(sql, (*params, photo_id))
         after: dict[str, Any] = _snapshot(conn, target_type, target_id)
         if before != after:
@@ -218,6 +220,16 @@ def detach_photo(conn: sqlite3.Connection, photo_id: int) -> None:
 def set_purpose(conn: sqlite3.Connection, photo_id: int, purpose: str) -> None:
     """写真の用途を変更する。"""
     _update_photo(conn, photo_id, 'UPDATE photos SET purpose = ? WHERE id = ?', (clean_text(purpose),), '写真の用途変更')
+
+
+def is_readable_image(content: bytes) -> bool:
+    """画像として最後まで読み込めるかを返す。途中で切れた画像も読み込めない物として扱う。"""
+    try:
+        with Image.open(io.BytesIO(content)) as image:
+            image.load()
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
+        return False
+    return True
 
 
 def regenerate_missing_images(conn: sqlite3.Connection, photos_dir: Path) -> int:

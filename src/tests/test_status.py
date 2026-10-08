@@ -4,12 +4,13 @@ import sqlite3
 
 import pytest
 
-from okiba import events, items, status
+from okiba import events, items, photos, status
 from okiba.common import ValidationError
+from okiba.config import Settings
 from okiba.events import Event
 from okiba.items import ItemDetail, SearchQuery
 from okiba.status import StatusRecord
-from tests.helpers import Places, book_input, retire_container
+from tests.helpers import Places, book_input, image_bytes, retire_container
 
 LEND: StatusRecord = StatusRecord(date='2026-10-01', party='佐藤さん', note='年末に返却予定')
 SALE: StatusRecord = StatusRecord(date='2026-10-05', party='古書店', note='300円')
@@ -197,6 +198,29 @@ class TestDeleteAndRestore:
             status.release(conn, item_id, 'sold', SALE)
         with pytest.raises(ValidationError):
             status.delete_item(conn, item_id, '誤登録')
+
+    def test_deleted_released_item_is_found_with_default_statuses(self, conn: sqlite3.Connection, places: Places) -> None:
+        """前提: 売却済で削除した書籍と、削除していない売却済の書籍 / 操作: 状態は既定のまま削除済みも表示して検索する / 期待: 削除した方だけ出る。"""
+        deleted: int = items.register_item(conn, book_input(places.box_a1))
+        status.release(conn, deleted, 'sold', SALE)
+        status.delete_item(conn, deleted, '誤登録')
+        sold: int = items.register_item(conn, book_input(places.box_a2))
+        status.release(conn, sold, 'sold', SALE)
+        query: SearchQuery = SearchQuery(text='リーダブル', include_deleted=True)
+        assert [summary.id for summary in items.search_items(conn, query)] == [deleted]
+        assert items.count_items(conn, query) == 1
+
+    def test_photos_of_deleted_item_cannot_be_changed(self, conn: sqlite3.Connection, settings: Settings, places: Places) -> None:
+        """前提: 写真付きで削除した書籍 / 操作: 写真の用途変更・紐付け解除 / 期待: 拒否され、写真は変わらない。"""
+        item_id: int = items.register_item(conn, book_input(places.box_a1))
+        photo_id: int = photos.import_photo(conn, settings.photos_dir, image_bytes(), 'front.jpg', '表紙', item_id=item_id).photo_id
+        status.delete_item(conn, item_id, '誤登録')
+        with pytest.raises(ValidationError):
+            photos.set_purpose(conn, photo_id, '裏表紙')
+        with pytest.raises(ValidationError):
+            photos.detach_photo(conn, photo_id)
+        photo: photos.Photo = photos.get_photo(conn, photo_id)
+        assert (photo.purpose, photo.detached) == ('表紙', False)
 
     def test_restore_brings_item_back(self, conn: sqlite3.Connection, places: Places) -> None:
         """前提: 貸出中で削除した書籍 / 操作: 復元する / 期待: 貸出中のまま検索に戻り、復元の履歴が残る。"""

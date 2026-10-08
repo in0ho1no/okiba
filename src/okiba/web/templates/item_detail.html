@@ -97,7 +97,7 @@
 
 <section>
   <h2>写真</h2>
-  {{ m.photo_list(photos, item.name) }}
+  {{ m.photo_list(photos, item.name, not item.deleted) }}
   {% if not item.deleted %}{{ m.photo_upload('/items/' ~ item.id ~ '/photos', errors) }}{% endif %}
 </section>
 

@@ -379,6 +379,18 @@ class TestStatusFlow:
         assert '復元しました' in response.text
         assert 'HDMI - DisplayPort' in client.get('/', params={'q': 'HDMI'}).text
 
+    def test_photos_of_deleted_item_are_read_only(self, client: TestClient, box: str) -> None:
+        """前提: 写真付きのケーブル / 操作: 削除してから詳細を開き、用途変更を送る / 期待: 写真の変更フォームは出ず、送信は拒否される。"""
+        item_id: str = _item_id(_post(client, '/items/new', _cable_form(box)))
+        _post(client, f'/items/{item_id}/photos', {'photo_purpose': '正面'}, files=[('photos', ('a.jpg', image_bytes(), 'image/jpeg'))])
+        photo_id: str = re.findall(r'/photos/(\d+)/purpose', client.get(f'/items/{item_id}').text)[0]
+        detail: str = _post(client, f'/items/{item_id}/delete', {'reason': '誤登録'}).text
+        assert '/photos/' + photo_id + '/purpose' not in detail
+        assert '/photos/' + photo_id + '/detach' not in detail
+        response: Response = _post(client, f'/photos/{photo_id}/purpose', {'purpose': '裏面'})
+        assert response.status_code == 422
+        assert '削除済みの登録の写真は変更できません' in response.text
+
     def test_revert_from_history(self, client: TestClient, box: str) -> None:
         """前提: 備考を上書きしたケーブル / 操作: 履歴から上書き前の差分を確認して差し戻す / 期待: 差分が表示され、備考が元に戻る。"""
         item_id: str = _item_id(_post(client, '/items/new', _cable_form(box, note='モニター用')))

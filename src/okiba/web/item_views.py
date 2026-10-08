@@ -356,11 +356,21 @@ def _owner_url(photo: photos.Photo) -> str:
     return f'/items/{photo.item_id}' if photo.item_id is not None else f'/containers/{photo.container_id}'
 
 
+def _photo_error(request: Request, conn: sqlite3.Connection, photo: photos.Photo, error: ValidationError) -> HTMLResponse:
+    """写真を変更できなかった理由を、紐付け先の物品の詳細画面に表示する。"""
+    if photo.item_id is None:
+        raise error
+    return render(request, 'item_detail.html', {**detail_context(conn, photo.item_id), 'errors': {'item': error.errors['photo']}}, status_code=422)
+
+
 @router.post('/photos/{photo_id}/detach', response_class=HTMLResponse)
-def detach_photo_submit(conn: Conn, photo_id: int) -> Response:
+def detach_photo_submit(request: Request, conn: Conn, photo_id: int) -> Response:
     """写真の紐付けの解除。"""
     photo: photos.Photo = photos.get_photo(conn, photo_id)
-    photos.detach_photo(conn, photo_id)
+    try:
+        photos.detach_photo(conn, photo_id)
+    except ValidationError as error:
+        return _photo_error(request, conn, photo, error)
     return redirect(f'{_owner_url(photo)}?notice=photo_detached')
 
 
@@ -369,5 +379,8 @@ async def photo_purpose_submit(request: Request, conn: Conn, photo_id: int) -> R
     """写真の用途の変更。"""
     data: FormData = await request.form()
     photo: photos.Photo = photos.get_photo(conn, photo_id)
-    photos.set_purpose(conn, photo_id, text_value(data.get('purpose')))
+    try:
+        photos.set_purpose(conn, photo_id, text_value(data.get('purpose')))
+    except ValidationError as error:
+        return _photo_error(request, conn, photo, error)
     return redirect(f'{_owner_url(photo)}?notice=photo_purpose')

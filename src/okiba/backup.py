@@ -19,6 +19,7 @@ from typing import Any
 from okiba import __version__
 from okiba.common import ValidationError
 from okiba.db import connect, schema_version
+from okiba.photos import is_readable_image
 
 BACKUP_FORMAT: str = 'okiba-backup'
 BACKUP_FORMAT_VERSION: int = 1
@@ -45,6 +46,7 @@ class BackupSummary:
     event_count: int
     photo_count: int
     file_count: int
+    unreadable: tuple[str, ...] = ()
 
 
 class WriteGate:
@@ -146,8 +148,8 @@ def _write_zip(path: Path, db_copy: Path, photos_dir: Path, photo_files: list[st
             archive.write(photos_dir / relative, PHOTOS_PREFIX + relative, compress_type=zipfile.ZIP_STORED)
 
 
-def _check_database(archive: zipfile.ZipFile, manifest: dict[str, Any], names: set[str]) -> tuple[int, int, int]:
-    """zip内のDBを展開して開き、整合性と、物品・履歴・写真を参照できることを確かめる。（物品, 履歴, 写真）の件数を返す。"""
+def _check_database(archive: zipfile.ZipFile, manifest: dict[str, Any], names: set[str]) -> tuple[int, int, list[str]]:
+    """zip内のDBを展開して開き、整合性と、写真の元画像がそろっていることを確かめる。（物品の件数, 履歴の件数, 元画像のパス）を返す。"""
     with tempfile.TemporaryDirectory(prefix='okiba-verify-') as work:
         extracted: Path = Path(archive.extract(DB_NAME, work))
         conn: sqlite3.Connection = sqlite3.connect(extracted)
@@ -165,11 +167,15 @@ def _check_database(archive: zipfile.ZipFile, manifest: dict[str, Any], names: s
     missing: list[str] = [path for path in originals if PHOTOS_PREFIX + path not in names]
     if missing:
         raise BackupError(f'写真の元画像 {len(missing)} 件が画像フォルダにありません（例: {missing[0]}）。')
-    return item_count, event_count, len(originals)
+    return item_count, event_count, originals
 
 
 def verify_backup(path: Path) -> BackupSummary:
-    """バックアップのzipを検証する。展開したDBと画像から物品・履歴・写真を参照できなければ BackupError。"""
+    """バックアップのzipを検証する。展開したDBと画像から物品・履歴・写真を参照できなければ BackupError。
+
+    画像として読み込めない元画像は unreadable に挙げるが、失敗にはしない。
+    元の画像フォルダで既に壊れている画像があると、直すまでバックアップを一切取れなくなるため。
+    """
     try:
         with zipfile.ZipFile(path) as archive:
             broken: str | None = archive.testzip()
@@ -183,8 +189,11 @@ def verify_backup(path: Path) -> BackupSummary:
                 raise BackupError('Okibaのバックアップではありません。')
             item_count: int
             event_count: int
-            photo_count: int
-            item_count, event_count, photo_count = _check_database(archive, manifest, names)
+            originals: list[str]
+            item_count, event_count, originals = _check_database(archive, manifest, names)
+            unreadable: tuple[str, ...] = tuple(
+                original for original in sorted(set(originals)) if not is_readable_image(archive.read(PHOTOS_PREFIX + original))
+            )
     except zipfile.BadZipFile as error:
         raise BackupError('zipとして読み込めません。') from error
     return BackupSummary(
@@ -194,8 +203,9 @@ def verify_backup(path: Path) -> BackupSummary:
         schema_version=manifest['schema_version'],
         item_count=item_count,
         event_count=event_count,
-        photo_count=photo_count,
+        photo_count=len(originals),
         file_count=sum(1 for name in names if name.startswith(PHOTOS_PREFIX)),
+        unreadable=unreadable,
     )
 
 
@@ -210,6 +220,10 @@ def create_backup(db_path: Path, photos_dir: Path, destination: str, now: dateti
         raise ValidationError({'destination': '出力先フォルダを絶対パスで入力してください。'})
     if not folder.is_dir():
         raise ValidationError({'destination': '出力先フォルダが見つかりません。'})
+    if folder.resolve().is_relative_to(photos_dir.resolve()):
+        raise ValidationError(
+            {'destination': '写真フォルダの中は出力先にできません。前回のバックアップが次のバックアップに画像として入ってしまうためです。'}
+        )
     created: datetime = now or datetime.now().astimezone()
     final: Path = folder / f'okiba-backup-{created:%Y%m%d-%H%M%S}.zip'
     if final.exists():
