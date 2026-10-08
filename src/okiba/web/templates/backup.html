@@ -20,12 +20,18 @@
 </section>
 
 {% if summary %}
-<section>
-  <h2>バックアップを作成しました</h2>
-  <p>書き出したzipを開き直し、DBの整合性と、写真の元画像がすべて入っていて画像として読み込めるかを確認しました。</p>
-  {% if summary.unreadable %}
-    <p class="error" role="alert">画像として読み込めない元画像が {{ summary.unreadable | length }} 件あります。元の画像フォルダでも壊れている可能性があります（バックアップには元のまま入っています）。</p>
-    <ul>{% for path in summary.unreadable[:10] %}<li><code>{{ path }}</code></li>{% endfor %}</ul>
+<section{{ ' class="alert"' if not summary.complete }}>
+  {% if summary.complete %}
+    <h2>バックアップを作成しました</h2>
+    <p>書き出したzipを開き直し、DBの整合性と、すべての写真を復元後に表示できること（元画像が読み込めるか、閲覧用画像と縮小版が入っていること）を確認しました。</p>
+  {% else %}
+    <h2 class="error">不完全なバックアップです</h2>
+    <p class="error" role="alert">復元しても表示できない写真が {{ summary.unviewable | length }} 件あります。元画像が読み込めず、閲覧用画像か縮小版も使えません。完成したバックアップと区別するため、名前に「-incomplete」を付けて残しました。</p>
+    <ul>{% for path in summary.unviewable[:10] %}<li><code>{{ path }}</code></li>{% endfor %}</ul>
+  {% endif %}
+  {% if summary.damaged %}
+    <p class="error">元画像が読み込めない写真が {{ summary.damaged | length }} 件あります。閲覧用画像が入っているため復元後も表示できますが、元の画像フォルダでも壊れている可能性があります。</p>
+    <ul>{% for path in summary.damaged[:10] %}<li><code>{{ path }}</code></li>{% endfor %}</ul>
   {% endif %}
   <dl class="props">
     <dt>ファイル</dt><dd>{{ summary.path }}</dd>

@@ -30,6 +30,11 @@ def stocked(conn: sqlite3.Connection, settings: Settings, places: Places) -> dic
     return {'book': book, 'kept_photo': kept.photo_id, 'detached_photo': detached.photo_id, 'deleted': deleted}
 
 
+def _truncate(path: Path) -> None:
+    """画像ファイルを途中で切り、読み込めない状態にする。"""
+    path.write_bytes(path.read_bytes()[:200])
+
+
 def _backup(settings: Settings, destination: Path) -> BackupSummary:
     destination.mkdir(exist_ok=True)
     return create_backup(settings.db_path, settings.photos_dir, str(destination), now=CREATED)
@@ -79,17 +84,50 @@ class TestCreateBackup:
             create_backup(settings.db_path, settings.photos_dir, str(destination))
         assert '写真フォルダの中' in error.value.errors['destination']
 
-    def test_unreadable_original_is_reported_but_backup_completes(self, settings: Settings, stocked: dict[str, int], tmp_path: Path) -> None:
-        """前提: 画像フォルダの元画像1つが壊れている / 操作: バックアップする / 期待: zipは完成し、読み込めない元画像として示される。"""
-        original: Path = next((settings.photos_dir / 'originals').rglob('*.jpg'))
-        original.write_bytes(original.read_bytes()[:200])
+    def test_damaged_original_with_display_images_completes(
+        self, conn: sqlite3.Connection, settings: Settings, stocked: dict[str, int], tmp_path: Path
+    ) -> None:
+        """前提: 元画像1つが壊れ、閲覧用画像と縮小版は正常 / 操作: バックアップする / 期待: 表示できるため完成扱いで、壊れた元画像は警告に出る。"""
+        photo: photos.Photo = photos.get_photo(conn, stocked['kept_photo'])
+        _truncate(settings.photos_dir / photo.original_path)
         summary: BackupSummary = _backup(settings, tmp_path / 'out')
-        assert summary.path.is_file()
-        assert summary.unreadable == (original.relative_to(settings.photos_dir).as_posix(),)
+        assert summary.complete
+        assert summary.path.name == 'okiba-backup-20261008-093015.zip'
+        assert (summary.unreadable, summary.unviewable, summary.damaged) == ((photo.original_path,), (), (photo.original_path,))
+
+    @pytest.mark.parametrize('broken', ['missing_display', 'damaged_thumb'], ids=['閲覧用画像なし', '縮小版も破損'])
+    def test_unviewable_photo_makes_backup_incomplete(
+        self, conn: sqlite3.Connection, settings: Settings, stocked: dict[str, int], tmp_path: Path, broken: str
+    ) -> None:
+        """前提: 元画像が壊れ、閲覧用画像がないか縮小版も壊れた写真 / 操作: バックアップする / 期待: 不完全として「-incomplete」付きの名前で残る。"""
+        photo: photos.Photo = photos.get_photo(conn, stocked['kept_photo'])
+        _truncate(settings.photos_dir / photo.original_path)
+        if broken == 'missing_display':
+            (settings.photos_dir / photo.display_path).unlink()
+        else:
+            _truncate(settings.photos_dir / photo.thumb_path)
+        summary: BackupSummary = _backup(settings, tmp_path / 'out')
+        assert not summary.complete
+        assert summary.unviewable == (photo.original_path,)
+        assert [entry.name for entry in (tmp_path / 'out').iterdir()] == ['okiba-backup-20261008-093015-incomplete.zip']
+        assert summary.path == tmp_path / 'out' / 'okiba-backup-20261008-093015-incomplete.zip'
+
+    def test_missing_display_images_are_fine_when_original_is_readable(
+        self, conn: sqlite3.Connection, settings: Settings, stocked: dict[str, int], tmp_path: Path
+    ) -> None:
+        """前提: 元画像は正常で、閲覧用画像と縮小版がない写真 / 操作: バックアップする / 期待: 復元後に作り直せるため完成扱いで、警告もない。"""
+        photo: photos.Photo = photos.get_photo(conn, stocked['kept_photo'])
+        (settings.photos_dir / photo.display_path).unlink()
+        (settings.photos_dir / photo.thumb_path).unlink()
+        summary: BackupSummary = _backup(settings, tmp_path / 'out')
+        assert summary.complete
+        assert (summary.unreadable, summary.unviewable) == ((), ())
 
     def test_readable_originals_are_not_reported(self, settings: Settings, stocked: dict[str, int], tmp_path: Path) -> None:
-        """前提: 元画像がすべて正常 / 操作: バックアップする / 期待: 読み込めない元画像はない。"""
-        assert _backup(settings, tmp_path / 'out').unreadable == ()
+        """前提: 元画像がすべて正常 / 操作: バックアップする / 期待: 完成扱いで、読み込めない元画像はない。"""
+        summary: BackupSummary = _backup(settings, tmp_path / 'out')
+        assert summary.complete
+        assert summary.unreadable == ()
 
     def test_same_second_backup_does_not_overwrite(self, settings: Settings, conn: sqlite3.Connection, tmp_path: Path) -> None:
         """前提: 同じ日時のバックアップが既にある / 操作: もう一度バックアップする / 期待: 上書きせずに拒否される。"""

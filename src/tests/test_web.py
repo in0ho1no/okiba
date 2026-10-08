@@ -420,6 +420,19 @@ class TestBackupFlow:
         assert 'バックアップを作成しました' in response.text
         assert len(list(destination.glob('okiba-backup-*.zip'))) == 1
 
+    def test_incomplete_backup_is_distinguished(self, client: TestClient, settings: Settings, box: str, tmp_path: Path) -> None:
+        """前提: 元画像が壊れ、閲覧用画像もない写真 / 操作: バックアップする / 期待: 成功ではなく不完全なバックアップと表示される。"""
+        _post(client, '/items/new', _cable_form(box), files=[('photos', ('a.jpg', image_bytes(), 'image/jpeg'))])
+        original: Path = next((settings.photos_dir / 'originals').rglob('*.jpg'))
+        original.write_bytes(original.read_bytes()[:200])
+        next((settings.photos_dir / 'display').rglob('*.jpg')).unlink()
+        destination: Path = tmp_path / 'backups'
+        destination.mkdir()
+        response: Response = _post(client, '/backup', {'destination': str(destination)})
+        assert '不完全なバックアップです' in response.text
+        assert 'バックアップを作成しました' not in response.text
+        assert len(list(destination.glob('okiba-backup-*-incomplete.zip'))) == 1
+
     def test_backup_destination_error(self, client: TestClient) -> None:
         """前提: なし / 操作: 相対パスを出力先にする / 期待: 入力エラーが表示される。"""
         response: Response = _post(client, '/backup', {'destination': 'backups'})

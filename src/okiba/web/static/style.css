@@ -99,7 +99,7 @@ dl.props dd { margin: 0; }
 details.operation { border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.75rem; }
 details.operation[open] { padding-bottom: 0.75rem; }
 details > summary { cursor: pointer; font-weight: 600; }
-section.deleted { border-color: var(--error); }
+section.deleted, section.alert { border-color: var(--error); }
 section.quiet { background: transparent; color: var(--muted); }
 .events time { color: var(--muted); margin-right: 0.5rem; font-variant-numeric: tabular-nums; }
 .counts { display: flex; gap: 1rem; flex-wrap: wrap; }
