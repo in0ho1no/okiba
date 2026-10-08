@@ -85,8 +85,8 @@ class TestContents:
         items.register_item(conn, cable_input(places.box_a1, a='USB-A', quantity=2))
         in_use: int = items.register_item(conn, cable_input(places.box_a1, a='DVI'))
         lent: int = items.register_item(conn, book_input(places.box_a1))
-        set_status(conn, in_use, 'in_use', places.box_a1)
-        set_status(conn, lent, 'lent', places.box_a1)
+        set_status(conn, in_use, 'in_use')
+        set_status(conn, lent, 'lent')
         contents: ContainerContents = items.container_contents(conn, places.box_a1)
         assert len(contents.stored) == 2
         assert sorted(summary.status for summary in contents.returning) == ['in_use', 'lent']

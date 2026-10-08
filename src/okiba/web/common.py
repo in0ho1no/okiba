@@ -30,6 +30,16 @@ NOTICES: dict[str, str] = {
     'photo_detached': '写真の紐付けを解除しました。',
     'photo_purpose': '写真の用途を変更しました。',
     'unchanged': '変更はありませんでした。',
+    'taken_out': '取り出しました。',
+    'put_back': '戻しました。',
+    'lent': '貸出を記録しました。',
+    'given_back': '返却を記録しました。',
+    'sold': '売却を記録しました。',
+    'disposed': '廃棄を記録しました。',
+    'release_undone': '手放しを取り消しました。',
+    'deleted': '削除しました。「削除済みも表示」で検索すると確認・復元できます。',
+    'restored': '復元しました。',
+    'reverted': '履歴から差し戻しました。',
 }
 
 _SNAPSHOT_LABELS: dict[str, str] = {
@@ -39,6 +49,10 @@ _SNAPSHOT_LABELS: dict[str, str] = {
     'status': '状態',
     'container_id': '保管場所',
     'note': '備考',
+    'status_date': '日付',
+    'status_party': '相手',
+    'status_note': '貸出・手放しの備考',
+    'deleted': '削除状態',
     'attributes': '属性',
     'tags': 'タグ',
     'identifiers': '識別コード',

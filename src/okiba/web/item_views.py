@@ -1,6 +1,7 @@
 """登録・検索・詳細・内容の修正・移動・写真の画面。"""
 
 import sqlite3
+from datetime import date
 from typing import Any
 from urllib.parse import urlencode
 
@@ -8,7 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, Response
 from starlette.datastructures import FormData, QueryParams, UploadFile
 
-from okiba import catalog, containers, events, items, photos, tags
+from okiba import catalog, containers, events, items, photos, status, tags
 from okiba.catalog import Field
 from okiba.common import ValidationError
 from okiba.config import Settings
@@ -49,6 +50,7 @@ def search_page(request: Request, conn: Conn) -> HTMLResponse:
         container_id=optional_int(params.get('container_id')),
         tag_id=optional_int(params.get('tag_id')),
         statuses=statuses,
+        include_deleted=params.get('deleted') == '1',
     )
     total_count: int = items.count_items(conn, query)
     total_pages: int = max(1, (total_count + SEARCH_PAGE_SIZE - 1) // SEARCH_PAGE_SIZE)
@@ -235,7 +237,8 @@ def _detail_attributes(conn: sqlite3.Connection, item: ItemDetail) -> tuple[list
     return template_values, extras
 
 
-def _detail_context(conn: sqlite3.Connection, item_id: int) -> dict[str, Any]:
+def detail_context(conn: sqlite3.Connection, item_id: int, status_form: dict[str, str] | None = None) -> dict[str, Any]:
+    """詳細画面の表示内容。status_form は状態の変更・削除の入力をやり直すときに入力欄へ戻す値（op に操作名）。"""
     item: ItemDetail = items.get_item(conn, item_id)
     template_values: list[tuple[str, str]]
     extras: list[tuple[str, str]]
@@ -248,13 +251,17 @@ def _detail_context(conn: sqlite3.Connection, item_id: int) -> dict[str, Any]:
         'photos': photos.list_photos(conn, item_id=item_id),
         'events': events.list_events(conn, 'item', item_id),
         'container_paths': containers.all_paths(conn),
+        'retired_destination': status.retired_destination(conn, item_id),
+        'release_labels': status.RELEASE_LABELS,
+        'today': date.today().isoformat(),
+        'status_form': status_form or {},
     }
 
 
 @router.get('/items/{item_id}', response_class=HTMLResponse)
 def item_detail(request: Request, conn: Conn, item_id: int) -> HTMLResponse:
     """詳細画面。"""
-    return render(request, 'item_detail.html', _detail_context(conn, item_id))
+    return render(request, 'item_detail.html', detail_context(conn, item_id))
 
 
 @router.get('/items/{item_id}/edit', response_class=HTMLResponse)
@@ -310,7 +317,7 @@ async def move_item_submit(request: Request, conn: Conn, item_id: int) -> Respon
             raise ValidationError({'container_id': '移動先を選んでください。'})
         items.move_item(conn, item_id, container_id)
     except ValidationError as error:
-        return render(request, 'item_detail.html', {**_detail_context(conn, item_id), 'errors': error.errors}, status_code=422)
+        return render(request, 'item_detail.html', {**detail_context(conn, item_id), 'errors': error.errors}, status_code=422)
     return redirect(f'/items/{item_id}?notice=moved')
 
 
@@ -341,7 +348,7 @@ async def item_photos_submit(request: Request, conn: Conn, item_id: int) -> Resp
     try:
         query: str = await import_uploads(request, conn, item_id=item_id)
     except ValidationError as error:
-        return render(request, 'item_detail.html', {**_detail_context(conn, item_id), 'errors': error.errors}, status_code=422)
+        return render(request, 'item_detail.html', {**detail_context(conn, item_id), 'errors': error.errors}, status_code=422)
     return redirect(f'/items/{item_id}?{query}')
 
 

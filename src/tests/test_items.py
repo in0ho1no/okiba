@@ -181,7 +181,7 @@ class TestMove:
     def test_moving_lent_item_changes_return_destination(self, conn: sqlite3.Connection, places: Places) -> None:
         """前提: 箱A-01を戻し先とする貸出中の書籍 / 操作: 箱B-01へ移動する / 期待: 状態はそのままで戻し先が変わる。"""
         item_id: int = items.register_item(conn, book_input(places.box_a1))
-        set_status(conn, item_id, 'lent', places.box_a1)
+        set_status(conn, item_id, 'lent')
         items.move_item(conn, item_id, places.box_b1)
         item: ItemDetail = items.get_item(conn, item_id)
         assert (item.status, item.container_id, item.is_return_target) == ('lent', places.box_b1, True)
@@ -189,7 +189,7 @@ class TestMove:
     def test_released_item_cannot_move(self, conn: sqlite3.Connection, places: Places) -> None:
         """前提: 売却済の書籍 / 操作: 移動する / 期待: 拒否される。"""
         item_id: int = items.register_item(conn, book_input(places.box_a1))
-        set_status(conn, item_id, 'sold', None)
+        set_status(conn, item_id, 'sold')
         with pytest.raises(ValidationError):
             items.move_item(conn, item_id, places.box_b1)
 

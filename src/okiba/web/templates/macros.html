@@ -81,7 +81,7 @@
   </form>
 {%- endmacro %}
 
-{% macro event_list(events) -%}
+{% macro event_list(events, revert_base=none) -%}
   {% if events %}
     <ol class="events">
       {% for e in events %}
@@ -91,6 +91,7 @@
           {% set changes = event_changes(e) %}
           {% if changes %}<span class="muted">{{ changes | join('・') }}</span>{% endif %}
           {% if e.memo %}<span>{{ e.memo }}</span>{% endif %}
+          {% if revert_base and e.before %}<a href="{{ revert_base }}{{ e.id }}" class="hint">この変更前に差し戻す</a>{% endif %}
         </li>
       {% endfor %}
     </ol>
@@ -106,7 +107,7 @@
       <tbody>
         {% for r in rows %}
           <tr>
-            <td><a href="/items/{{ r.id }}">{{ r.name }}</a></td>
+            <td><a href="/items/{{ r.id }}">{{ r.name }}</a>{% if r.deleted %} <span class="badge">削除済み</span>{% endif %}</td>
             <td>{{ r.category_path }}</td>
             <td class="num">{{ r.quantity }}</td>
             <td><span class="status status-{{ r.status }}">{{ r.status_label }}</span></td>
@@ -119,4 +120,43 @@
   {% else %}
     <p class="muted">{{ empty_message }}</p>
   {% endif %}
+{%- endmacro %}
+
+{% macro destination_select(op, retired_destination, container_paths, errors) -%}
+  {% if retired_destination %}
+    <div class="field">
+      <label for="{{ op }}-container">戻る先「{{ retired_destination }}」は廃止済みです。代わりの保管場所</label>
+      <select id="{{ op }}-container" name="container_id">
+        <option value="">選んでください</option>
+        {% for c, path in container_paths %}<option value="{{ c.id }}">{{ path }}</option>{% endfor %}
+      </select>
+    </div>
+  {% endif %}
+  {{ error(errors, op ~ '.container_id') }}
+{%- endmacro %}
+
+{% macro status_record_form(item, op, label, party_label, form, today, errors) -%}
+  {% set current = form if form.get('op') == op else {} %}
+  <details class="operation"{{ ' open' if current }}>
+    <summary>{{ label }}</summary>
+    <form method="post" action="/items/{{ item.id }}/status/{{ op }}" class="stack"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+      <div class="field-grid">
+        <div class="field">
+          <label for="{{ op }}-date">{{ label }}日</label>
+          <input id="{{ op }}-date" type="date" name="date" value="{{ current.get('date') or today }}">
+          {{ error(errors, op ~ '.date') }}
+        </div>
+        <div class="field">
+          <label for="{{ op }}-party">{{ party_label }}</label>
+          <input id="{{ op }}-party" type="text" name="party" value="{{ current.get('party', '') }}">
+          {{ error(errors, op ~ '.party') }}
+        </div>
+      </div>
+      <div class="field">
+        <label for="{{ op }}-note">備考（金額、返却予定の目安など）</label>
+        <textarea id="{{ op }}-note" name="note" rows="2">{{ current.get('note', '') }}</textarea>
+      </div>
+      <button type="submit">{{ label }}を記録</button>
+    </form>
+  </details>
 {%- endmacro %}

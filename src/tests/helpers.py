@@ -8,7 +8,8 @@ from typing import Any
 from PIL import Image
 
 import okiba.photos  # noqa: F401  HEIF形式の保存に pillow-heif のプラグイン登録が必要
-from okiba import containers, items
+from okiba import containers, items, status
+from okiba.status import StatusRecord
 
 BOOKS_ID: int = 1
 CABLES_ID: int = 2
@@ -72,9 +73,14 @@ def book_input(container_id: int, title: str = 'リーダブルコード', isbn:
     return data
 
 
-def set_status(conn: sqlite3.Connection, item_id: int, status: str, container_id: int | None) -> None:
-    """フェーズ1-2の状態操作が未実装のため、DBを直接書き換えて状態を用意する。"""
-    conn.execute('UPDATE items SET status = ?, container_id = ? WHERE id = ?', (status, container_id, item_id))
+def set_status(conn: sqlite3.Connection, item_id: int, target: str) -> None:
+    """保管中の物を、状態の操作（取り出す・貸出・売却・廃棄）で指定の状態にする。"""
+    if target == 'in_use':
+        status.take_out(conn, item_id)
+    elif target == 'lent':
+        status.lend(conn, item_id, StatusRecord(date='2026-10-01', party='友人'))
+    else:
+        status.release(conn, item_id, target, StatusRecord(date='2026-10-01', party='古書店'))
 
 
 def image_bytes(
@@ -90,3 +96,8 @@ def image_bytes(
     else:
         image.save(buffer, format=image_format)
     return buffer.getvalue()
+
+
+def retire_container(conn: sqlite3.Connection, container_id: int) -> None:
+    """保管場所の廃止はフェーズ1-4で実装するため、DBを直接書き換えて廃止状態を用意する。"""
+    conn.execute('UPDATE containers SET retired = 1 WHERE id = ?', (container_id,))

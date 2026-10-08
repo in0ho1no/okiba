@@ -5,7 +5,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from okiba.common import now_iso
+from okiba.common import NotFoundError, now_iso
 
 TargetType = Literal['item', 'container']
 EventKind = Literal['create', 'update', 'move', 'status', 'split', 'merge', 'delete', 'restore']
@@ -66,22 +66,36 @@ def record(
     return event_id
 
 
+def replace_after(conn: sqlite3.Connection, event_id: int, after: dict[str, Any]) -> None:
+    """記録直後の履歴の変更後を書き直す。記録した履歴のIDを含めた内容を残すために使う。"""
+    conn.execute('UPDATE item_events SET after_json = ? WHERE id = ?', (_dump(after), event_id))
+
+
+def _event(row: sqlite3.Row) -> Event:
+    return Event(
+        id=row['id'],
+        target_type=row['target_type'],
+        target_id=row['target_id'],
+        kind=row['kind'],
+        before=json.loads(row['before_json']) if row['before_json'] else None,
+        after=json.loads(row['after_json']) if row['after_json'] else None,
+        memo=row['memo'],
+        created_at=row['created_at'],
+    )
+
+
+def get_event(conn: sqlite3.Connection, event_id: int) -> Event:
+    """変更履歴を1件返す。"""
+    row: sqlite3.Row | None = conn.execute('SELECT * FROM item_events WHERE id = ?', (event_id,)).fetchone()
+    if row is None:
+        raise NotFoundError(f'event {event_id}')
+    return _event(row)
+
+
 def list_events(conn: sqlite3.Connection, target_type: TargetType, target_id: int) -> list[Event]:
     """対象の変更履歴を新しい順に返す。"""
     rows: list[sqlite3.Row] = conn.execute(
         'SELECT * FROM item_events WHERE target_type = ? AND target_id = ? ORDER BY id DESC',
         (target_type, target_id),
     ).fetchall()
-    return [
-        Event(
-            id=row['id'],
-            target_type=row['target_type'],
-            target_id=row['target_id'],
-            kind=row['kind'],
-            before=json.loads(row['before_json']) if row['before_json'] else None,
-            after=json.loads(row['after_json']) if row['after_json'] else None,
-            memo=row['memo'],
-            created_at=row['created_at'],
-        )
-        for row in rows
-    ]
+    return [_event(row) for row in rows]

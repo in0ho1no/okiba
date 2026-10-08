@@ -43,6 +43,7 @@
     {% for code, label in STATUS_LABELS.items() %}
       <label class="check"><input type="checkbox" name="status" value="{{ code }}" {{ 'checked' if code in query.statuses }}> {{ label }}</label>
     {% endfor %}
+    <label class="check"><input type="checkbox" name="deleted" value="1" {{ 'checked' if query.include_deleted }}> 削除済みも表示</label>
   </fieldset>
   <div class="actions"><button type="submit">検索</button></div>
 </form>

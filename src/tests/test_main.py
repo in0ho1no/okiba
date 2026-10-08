@@ -1,5 +1,6 @@
 """起動処理のテスト。"""
 
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +9,7 @@ from fastapi import FastAPI
 
 import main
 from okiba.config import DATA_DIR_ENV, Settings, load_settings
+from okiba.db import connect, open_database
 
 
 def test_data_dir_defaults_outside_repository(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -30,3 +32,20 @@ def test_main_listens_only_on_localhost(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert (calls[0]['host'], calls[0]['port']) == ('127.0.0.1', 8123)
     settings: Settings = calls[0]['app'].state.settings
     assert settings.db_path.exists()
+
+
+def test_newer_database_stops_with_reason(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """前提: アプリより新しい形式のDB / 操作: 起動する / 期待: サーバーを起動せず、理由を表示して終了する。"""
+    monkeypatch.setenv(DATA_DIR_ENV, str(tmp_path / 'data'))
+    settings: Settings = load_settings()
+    open_database(settings.db_path)
+    conn: sqlite3.Connection = connect(settings.db_path)
+    conn.execute('PRAGMA user_version = 999')
+    conn.close()
+    calls: list[FastAPI] = []
+    monkeypatch.setattr(main.uvicorn, 'run', lambda app, **options: calls.append(app))
+    with pytest.raises(SystemExit) as stopped:
+        main.main([])
+    assert stopped.value.code == 1
+    assert calls == []
+    assert 'より新しいため開けません' in capsys.readouterr().err
