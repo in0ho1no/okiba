@@ -1,6 +1,16 @@
 {
   "permissions": {
     "defaultMode": "default",
+    "allow": [
+      "Bash(uv run ruff check src/)",
+      "Bash(uv run mypy src/)",
+      "Bash(uv run pyright src/)",
+      "Bash(uv run pytest)",
+      "PowerShell(uv run ruff check src/)",
+      "PowerShell(uv run mypy src/)",
+      "PowerShell(uv run pyright src/)",
+      "PowerShell(uv run pytest)"
+    ],
     "deny": [
       "Read(**/.env)",
       "Read(**/.env.*)",

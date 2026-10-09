@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}{{ '登録' if mode == 'new' else '内容の修正' }}{% endblock %}
+{% block content %}
+{% if mode == 'new' %}
+  <h1>登録</h1>
+  {% set action_url = '/items/new' %}
+{% else %}
+  <h1>内容の修正：{{ item.name }}</h1>
+  {% set action_url = '/items/' ~ item.id ~ '/edit' %}
+  <p><a href="/items/{{ item.id }}">詳細に戻る</a></p>
+{% endif %}
+
+<form method="post" action="{{ action_url }}" enctype="multipart/form-data" class="item-form" novalidate><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+  {# Enterキーで「作成」ボタンが押されないよう、既定のボタンを表示の更新にする #}
+  <button type="submit" name="action" value="refresh" class="visually-hidden" tabindex="-1" aria-hidden="true">表示を更新</button>
+  {% if mode == 'edit' %}<input type="hidden" name="prev_category_id" value="{{ form.category_id or '' }}">{% endif %}
+
+  <section class="step">
+    <h2>1. カテゴリ</h2>
+    <div class="field-grid">
+      <div class="field">
+        <label for="major_id">大カテゴリ</label>
+        <select id="major_id" name="major_id" data-refresh>
+          <option value="">選んでください</option>
+          {% for c in majors %}<option value="{{ c.id }}" {{ 'selected' if form.major_id == c.id }}>{{ c.name }}</option>{% endfor %}
+        </select>
+        {{ m.error(errors, 'category_id') }}
+      </div>
+      <div class="field">
+        <label for="new_major_name">新しい大カテゴリ</label>
+        <div class="input-row">
+          <input id="new_major_name" name="new_major_name" type="text">
+          <button type="submit" name="action" value="add_major" class="secondary">作成</button>
+        </div>
+        {{ m.error(errors, 'new_major_name') }}
+      </div>
+    </div>
+    {% if form.major_id %}
+      <div class="field-grid">
+        <div class="field">
+          <label for="minor_id">小カテゴリ</label>
+          <select id="minor_id" name="minor_id" data-refresh>
+            <option value="">なし（大カテゴリのみ）</option>
+            {% for c in minors %}<option value="{{ c.id }}" {{ 'selected' if form.minor_id == c.id }}>{{ c.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="new_minor_name">新しい小カテゴリ</label>
+          <div class="input-row">
+            <input id="new_minor_name" name="new_minor_name" type="text">
+            <button type="submit" name="action" value="add_minor" class="secondary">作成</button>
+          </div>
+          {{ m.error(errors, 'new_minor_name') }}
+        </div>
+      </div>
+    {% endif %}
+    <noscript><button type="submit" name="action" value="refresh" class="secondary">表示を更新</button></noscript>
+  </section>
+
+  {% if form.category_id %}
+    <section class="step">
+      <h2>2. 詳細</h2>
+      {% for f in fields %}{{ m.field_input(f, form, errors, suggestions) }}{% endfor %}
+      {% if form.extras %}
+        <h3>テンプレート外の項目</h3>
+        {% for key, value in form.extras.items() %}
+          <div class="field">
+            <label for="x-{{ loop.index }}">{{ extra_labels[key] }}</label>
+            <div class="input-row">
+              <input id="x-{{ loop.index }}" name="extra__{{ key }}" type="text" value="{{ value }}">
+              {{ m.clear_button('x-' ~ loop.index) }}
+            </div>
+            <p class="hint">空にして保存すると、この項目を削除します。</p>
+          </div>
+        {% endfor %}
+      {% endif %}
+      <details class="add-field" {{ 'open' if errors.get('new_field_label') or errors.get('new_field_unit_kind') or errors.get('new_field_key') }}>
+        <summary>項目を追加</summary>
+        <div class="field-grid">
+          <div class="field">
+            <label for="new_field_label">表示名</label>
+            <input id="new_field_label" name="new_field_label" type="text">
+            {{ m.error(errors, 'new_field_label') }}
+          </div>
+          <div class="field">
+            <label for="new_field_type">型</label>
+            <select id="new_field_type" name="new_field_type">
+              {% for code, label in FIELD_TYPES.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="new_field_unit_kind">単位の種類（数値＋単位のみ）</label>
+            <select id="new_field_unit_kind" name="new_field_unit_kind">
+              <option value="">なし</option>
+              {% for code, label in UNIT_KINDS.items() %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+            </select>
+            {{ m.error(errors, 'new_field_unit_kind') }}
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" name="new_field_save" checked> このカテゴリのテンプレートとして保存する</label>
+        <button type="submit" name="action" value="add_field" class="secondary">項目を追加</button>
+      </details>
+    </section>
+
+    <section class="step">
+      <h2>3. 共通項目</h2>
+      <div class="field{{ ' has-error' if errors.get('name') }}">
+        <label for="name">{{ name_label }}<span class="badge req">必須</span></label>
+        <div class="input-row">
+          <input id="name" name="name" type="text" value="{{ form.name }}">
+          {{ m.clear_button('name') }}
+        </div>
+        {% if is_cable %}<p class="hint">空欄の場合は端子と長さから自動で付けます。</p>{% endif %}
+        {{ m.error(errors, 'name') }}
+      </div>
+      {% if mode == 'new' %}
+        <div class="field{{ ' has-error' if errors.get('container_id') }}">
+          <label for="container_id">保管場所<span class="badge req">必須</span></label>
+          <select id="container_id" name="container_id">
+            <option value="">選んでください</option>
+            {% for c, path in container_paths %}<option value="{{ c.id }}" {{ 'selected' if form.container_id == c.id | string }}>{{ path }}</option>{% endfor %}
+          </select>
+          {% if not container_paths %}<p class="hint">先に<a href="/containers">保管場所</a>を作成してください。</p>{% endif %}
+          {{ m.error(errors, 'container_id') }}
+        </div>
+      {% endif %}
+      <div class="field{{ ' has-error' if errors.get('quantity') }}">
+        <label for="quantity">数量</label>
+        <div class="input-row">
+          <input id="quantity" name="quantity" type="text" inputmode="numeric" value="{{ form.quantity }}" class="short">
+          {{ m.clear_button('quantity') }}
+        </div>
+        {{ m.error(errors, 'quantity') }}
+      </div>
+      <div class="field">
+        <label for="tags">タグ（「,」または「、」区切り）</label>
+        <div class="input-row">
+          <input id="tags" name="tags" type="text" value="{{ form.tags }}" list="dl-tags" autocomplete="off">
+          {{ m.clear_button('tags') }}
+        </div>
+        <datalist id="dl-tags">{% for t in all_tags %}<option value="{{ t.name }}">{% endfor %}</datalist>
+      </div>
+      <div class="field">
+        <label for="note">備考</label>
+        <div class="input-row">
+          <textarea id="note" name="note" rows="3">{{ form.note }}</textarea>
+          {{ m.clear_button('note') }}
+        </div>
+      </div>
+    </section>
+
+    {% if mode == 'new' %}
+      <section class="step">
+        <h2>4. 写真（任意）</h2>
+        <div class="field-grid">
+          <div class="field">
+            <label for="photos">写真</label>
+            <input id="photos" type="file" name="photos" multiple accept="image/*,.heic,.heif">
+            {{ m.error(errors, 'photo') }}
+          </div>
+          <div class="field">
+            <label for="photo_purpose">用途</label>
+            <input id="photo_purpose" type="text" name="photo_purpose" list="dl-purposes" class="short">
+            <datalist id="dl-purposes">{% for s in PURPOSE_SUGGESTIONS %}<option value="{{ s }}">{% endfor %}</datalist>
+          </div>
+        </div>
+        <p class="hint">カテゴリの変更や項目の追加をすると、選んだ写真は選び直しになります。</p>
+      </section>
+    {% endif %}
+
+    <div class="actions">
+      <button type="submit" name="action" value="save">{{ '登録' if mode == 'new' else '保存' }}</button>
+      {% if mode == 'new' %}<button type="submit" name="action" value="save_continue" class="secondary">登録して同じ内容で続ける</button>{% endif %}
+    </div>
+  {% endif %}
+</form>
+{% endblock %}

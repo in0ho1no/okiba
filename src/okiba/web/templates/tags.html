@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}タグ{% endblock %}
+{% block content %}
+<h1>タグ</h1>
+{% if tags %}
+  <ul class="plain">
+    {% for t in tags %}
+      <li>
+        <form method="post" action="/tags/{{ t.id }}/rename" class="inline-form"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+          <input name="name" type="text" value="{{ t.name }}" aria-label="タグ名">
+          <button type="submit">名称を変更</button>
+          <a href="/?searched=1&amp;tag_id={{ t.id }}&amp;status=stored&amp;status=in_use&amp;status=lent">このタグの物品</a>
+        </form>
+        {{ m.error(errors, 'tag' ~ t.id ~ '_name') }}
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="muted">タグはまだありません。登録画面でタグを入力すると自動で作成されます。</p>
+{% endif %}
+
+<h2>タグを作成</h2>
+<form method="post" action="/tags" class="inline-form"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+  <label for="name">タグ名</label>
+  <input id="name" name="name" type="text">
+  <button type="submit">作成</button>
+</form>
+{{ m.error(errors, 'name') }}
+{% endblock %}

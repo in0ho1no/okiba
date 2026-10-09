@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}保管場所{% endblock %}
+{% block content %}
+<h1>保管場所</h1>
+{% if container_paths %}
+  <ul class="plain">
+    {% for c, path in container_paths %}<li><a href="/containers/{{ c.id }}">{{ path }}</a> <span class="muted">{{ c.kind_name }}</span></li>{% endfor %}
+  </ul>
+{% else %}
+  <p class="muted">保管場所はまだありません。</p>
+{% endif %}
+
+<h2>保管場所を作成</h2>
+<form method="post" action="/containers" class="stack"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+  <div class="field-grid">
+    <div class="field">
+      <label for="name">名前</label>
+      <input id="name" name="name" type="text">
+      {{ m.error(errors, 'name') }}
+    </div>
+    <div class="field">
+      <label for="kind_id">種類</label>
+      <select id="kind_id" name="kind_id">
+        {% for k in kinds %}<option value="{{ k.id }}">{{ k.name }}</option>{% endfor %}
+      </select>
+      {{ m.error(errors, 'kind_id') }}
+    </div>
+    <div class="field">
+      <label for="parent_id">親の保管場所</label>
+      <select id="parent_id" name="parent_id">
+        <option value="">なし（最上位）</option>
+        {% for c, path in container_paths %}<option value="{{ c.id }}">{{ path }}</option>{% endfor %}
+      </select>
+      {{ m.error(errors, 'parent_id') }}
+    </div>
+    <div class="field">
+      <label for="label">ラベルID（任意）</label>
+      <input id="label" name="label" type="text" placeholder="{{ suggested_label }}" class="short">
+      <p class="hint">次の番号の候補：{{ suggested_label }}</p>
+      {{ m.error(errors, 'label') }}
+    </div>
+  </div>
+  <button type="submit">作成</button>
+</form>
+
+<h2>保管場所の種類を追加</h2>
+<p class="muted">現在の種類：{{ kinds | map(attribute='name') | join('・') }}</p>
+<form method="post" action="/container-kinds" class="inline-form"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+  <label for="kind_name">種類名</label>
+  <input id="kind_name" name="kind_name" type="text">
+  <button type="submit">追加</button>
+</form>
+{{ m.error(errors, 'kind_name') }}
+{% endblock %}

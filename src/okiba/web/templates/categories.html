@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}カテゴリとテンプレート{% endblock %}
+{% block content %}
+<h1>カテゴリとテンプレート</h1>
+<ul class="tree">
+  {% for major in majors %}
+    <li><a href="/categories/{{ major.id }}">{{ major.name }}</a>
+      {% if children[major.id] %}
+        <ul>{% for child in children[major.id] %}<li><a href="/categories/{{ child.id }}">{{ child.name }}</a></li>{% endfor %}</ul>
+      {% endif %}
+    </li>
+  {% endfor %}
+</ul>
+
+<h2>カテゴリを作成</h2>
+<form method="post" action="/categories" class="stack"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+  <div class="field">
+    <label for="name">名前</label>
+    <input id="name" name="name" type="text">
+    {{ m.error(errors, 'name') }}
+  </div>
+  <div class="field">
+    <label for="parent_id">親カテゴリ</label>
+    <select id="parent_id" name="parent_id">
+      <option value="">なし（大カテゴリとして作成）</option>
+      {% for major in majors %}<option value="{{ major.id }}">{{ major.name }}</option>{% endfor %}
+    </select>
+    {{ m.error(errors, 'parent_id') }}
+  </div>
+  <button type="submit">作成</button>
+</form>
+{% endblock %}

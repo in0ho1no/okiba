@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}履歴からの差し戻し{% endblock %}
+{% block content %}
+<p><a href="/items/{{ item.id }}">{{ item.name }} の詳細へ戻る</a></p>
+<h1>履歴からの差し戻し</h1>
+<p>{{ plan.event.created_at }} の{{ plan.event.label }}の変更前にあった名称・属性・タグ・備考に戻します。数量・状態・保管場所・カテゴリ・識別コード・写真は変わりません。</p>
+
+<section>
+  <h2>現在との差分</h2>
+  {% if plan.changes %}
+    <table>
+      <thead><tr><th>項目</th><th>現在</th><th>差し戻し後</th></tr></thead>
+      <tbody>
+        {% for c in plan.changes %}<tr><td>{{ c.label }}</td><td class="pre">{{ c.current }}</td><td class="pre">{{ c.reverted }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">現在の内容と同じため、差し戻しても変わりません。</p>
+  {% endif %}
+  {% if plan.retired_tags %}<p class="hint">廃止済みのタグ：{{ plan.retired_tags | join('、') }}（廃止済みのまま戻します）</p>{% endif %}
+  {% for message in plan.errors.values() %}<p class="error" role="alert">{{ message }}</p>{% endfor %}
+</section>
+
+{% if item.deleted %}
+  <p class="error" role="alert">削除済みの登録は差し戻せません。先に復元してください。</p>
+{% elif plan.changes and not plan.errors %}
+  <form method="post" action="/items/{{ item.id }}/revert/{{ plan.event.id }}" class="actions"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+    <button type="submit">差し戻す</button>
+    <a class="button secondary" href="/items/{{ item.id }}">やめる</a>
+  </form>
+{% endif %}
+{% endblock %}

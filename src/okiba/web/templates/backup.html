@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}バックアップ{% endblock %}
+{% block content %}
+<h1>バックアップ</h1>
+<section>
+  <p>DBと画像フォルダを日付付きのzipにまとめ、指定したフォルダ（外付けドライブやNASなど）に書き出します。書き出しの間は更新と写真の取り込みを一時停止し、閲覧だけできます。</p>
+  <form method="post" action="/backup" class="stack"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+    <div class="field{{ ' has-error' if errors.get('destination') }}">
+      <label for="destination">出力先フォルダ（絶対パス）</label>
+      <div class="input-row">
+        <input id="destination" type="text" name="destination" value="{{ destination }}" placeholder="例: E:\okiba-backup">
+        {{ m.clear_button('destination') }}
+      </div>
+      {{ m.error(errors, 'destination') }}
+    </div>
+    <button type="submit">バックアップを作成</button>
+  </form>
+  {{ m.error(errors, 'backup') }}
+</section>
+
+{% if summary %}
+<section{{ ' class="alert"' if not summary.complete }}>
+  {% if summary.complete %}
+    <h2>バックアップを作成しました</h2>
+    <p>書き出したzipを開き直し、DBの整合性と、すべての写真を復元後に表示できること（元画像が読み込めるか、閲覧用画像と縮小版が入っていること）を確認しました。</p>
+  {% else %}
+    <h2 class="error">不完全なバックアップです</h2>
+    <p class="error" role="alert">復元しても表示できない写真が {{ summary.unviewable | length }} 件あります。閲覧用画像か縮小版が使えず、元画像からも作り直せません。完成したバックアップと区別するため、名前に「-incomplete」を付けて残しました。</p>
+    <ul>{% for path in summary.unviewable[:10] %}<li><code>{{ path }}</code></li>{% endfor %}</ul>
+  {% endif %}
+  {% if summary.damaged %}
+    <p class="error">元画像が読み込めない写真が {{ summary.damaged | length }} 件あります。閲覧用画像が入っているため復元後も表示できますが、元の画像フォルダでも壊れている可能性があります。</p>
+    <ul>{% for path in summary.damaged[:10] %}<li><code>{{ path }}</code></li>{% endfor %}</ul>
+  {% endif %}
+  {% if summary.skipped %}
+    <p class="hint">壊れていた閲覧用画像・縮小版 {{ summary.skipped | length }} 件はzipに含めていません。元画像を読み込める写真については、復元後の起動時に作り直されます。</p>
+  {% endif %}
+  <dl class="props">
+    <dt>ファイル</dt><dd>{{ summary.path }}</dd>
+    <dt>作成日時</dt><dd>{{ summary.created_at }}</dd>
+    <dt>アプリのバージョン</dt><dd>{{ summary.app_version }}</dd>
+    <dt>DB形式のバージョン</dt><dd>{{ summary.schema_version }}</dd>
+    <dt>登録</dt><dd>{{ summary.item_count }}件</dd>
+    <dt>変更履歴</dt><dd>{{ summary.event_count }}件</dd>
+    <dt>写真</dt><dd>{{ summary.photo_count }}件（画像ファイル {{ summary.file_count }}個）</dd>
+  </dl>
+</section>
+{% endif %}
+
+<section>
+  <h2>復元</h2>
+  <ol>
+    <li>Okibaを停止します。</li>
+    <li>バックアップのzipを展開します。</li>
+    <li>データの保存先にある <code>okiba.sqlite3</code> と <code>photos</code> フォルダを、展開した同名のファイル・フォルダで置き換えます（置き換える前の物は別の場所へ移しておきます）。</li>
+    <li>Okibaを起動します。DB形式が古い場合は、元のDBを退避してから更新します。</li>
+  </ol>
+</section>
+{% endblock %}

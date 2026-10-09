@@ -19,6 +19,29 @@ updates:
       include: "scope"
     target-branch: "develop"
 
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+      time: "17:30"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 10
+    assignees:
+      - "in0ho1no"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "uv"
+      include: "scope"
+    target-branch: "develop"
+    # 開発用ツール（ruff・mypy・pyright・pytest など）は更新頻度が高いため、1つのPRにまとめる
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+
   - package-ecosystem: "docker"
     directory: "/docker/semgrep"
     schedule:
