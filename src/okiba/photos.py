@@ -204,6 +204,8 @@ def _update_photo(conn: sqlite3.Connection, photo_id: int, sql: str, params: tup
     target_type, target_id = _target(photo.item_id, photo.container_id)
     with transaction(conn):
         before: dict[str, Any] = _snapshot(conn, target_type, target_id)
+        if before.get('deleted'):
+            raise ValidationError({'photo': '削除済みの登録の写真は変更できません。先に復元してください。'})
         conn.execute(sql, (*params, photo_id))
         after: dict[str, Any] = _snapshot(conn, target_type, target_id)
         if before != after:
@@ -218,3 +220,37 @@ def detach_photo(conn: sqlite3.Connection, photo_id: int) -> None:
 def set_purpose(conn: sqlite3.Connection, photo_id: int, purpose: str) -> None:
     """写真の用途を変更する。"""
     _update_photo(conn, photo_id, 'UPDATE photos SET purpose = ? WHERE id = ?', (clean_text(purpose),), '写真の用途変更')
+
+
+def is_readable_image(content: bytes) -> bool:
+    """画像として最後まで読み込めるかを返す。途中で切れた画像も読み込めない物として扱う。"""
+    try:
+        with Image.open(io.BytesIO(content)) as image:
+            image.load()
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
+        return False
+    return True
+
+
+def regenerate_missing_images(conn: sqlite3.Connection, photos_dir: Path) -> int:
+    """閲覧用画像・縮小版が見つからない写真を元画像から作り直し、作り直した件数を返す。
+
+    閲覧用画像を含まないバックアップから復元しても表示できるよう、起動時に呼ぶ。読み込めない元画像は飛ばす。
+    """
+    regenerated: int = 0
+    for row in conn.execute('SELECT original_path, display_path, thumb_path FROM photos ORDER BY id').fetchall():
+        display_file: Path = photos_dir / row['display_path']
+        thumb_file: Path = photos_dir / row['thumb_path']
+        original_file: Path = photos_dir / row['original_path']
+        if (display_file.exists() and thumb_file.exists()) or not original_file.exists():
+            continue
+        try:
+            with Image.open(original_file) as image:
+                image.load()
+                flattened: Image.Image = _flatten(image)
+        except (UnidentifiedImageError, OSError):
+            continue
+        _save_resized(flattened, DISPLAY_MAX_SIZE, display_file)
+        _save_resized(flattened, THUMB_MAX_SIZE, thumb_file)
+        regenerated += 1
+    return regenerated

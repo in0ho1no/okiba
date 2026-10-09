@@ -56,6 +56,7 @@ class ItemSummary:
     status: str
     location: str
     tags: list[str]
+    deleted: bool = False
 
     @property
     def status_label(self) -> str:
@@ -88,6 +89,10 @@ class ItemDetail:
     deleted: bool
     created_at: str
     updated_at: str
+    status_date: str | None = None
+    status_party: str | None = None
+    status_note: str | None = None
+    deleted_at: str | None = None
 
     @property
     def status_label(self) -> str:
@@ -132,6 +137,7 @@ class SearchQuery:
     container_id: int | None = None
     tag_id: int | None = None
     statuses: tuple[str, ...] = ACTIVE_STATUSES
+    include_deleted: bool = False
 
 
 def display_value(value: Any) -> str:
@@ -236,11 +242,16 @@ def _prepare(conn: sqlite3.Connection, data: ItemInput, before: dict[str, Any] |
     return checked, errors
 
 
+def prepare_item(conn: sqlite3.Connection, data: ItemInput, item_id: int | None = None) -> tuple[ItemInput, dict[str, str]]:
+    """保存せずに、保存される内容（名称の自動生成などを反映）と入力欄ごとのエラーを返す。item_id を指定すると内容の修正として扱う。"""
+    before: dict[str, Any] | None = item_snapshot(conn, item_id) if item_id is not None else None
+    return _prepare(conn, data, before)
+
+
 def validate_item(conn: sqlite3.Connection, data: ItemInput, item_id: int | None = None) -> dict[str, str]:
     """保存せずに検証だけを行い、入力欄ごとのエラーを返す。item_id を指定すると内容の修正として検証する。"""
-    before: dict[str, Any] | None = item_snapshot(conn, item_id) if item_id is not None else None
     errors: dict[str, str]
-    _, errors = _prepare(conn, data, before)
+    _, errors = prepare_item(conn, data, item_id)
     return errors
 
 
@@ -275,8 +286,8 @@ def register_item(conn: sqlite3.Connection, data: ItemInput) -> int:
     return item_id
 
 
-def update_item(conn: sqlite3.Connection, item_id: int, data: ItemInput) -> None:
-    """内容（カテゴリ・名称・数量・備考・属性・識別コード・タグ）を修正する。保管場所は移動で扱う。
+def update_item(conn: sqlite3.Connection, item_id: int, data: ItemInput, memo: str = '') -> bool:
+    """内容（カテゴリ・名称・数量・備考・属性・識別コード・タグ）を修正し、変更があったかを返す。保管場所は移動で扱う。
 
     ケーブル類の名称は、現在の名称が修正前の属性から生成される名称と同じで、名称欄を変えていない場合だけ再生成する。
     """
@@ -304,8 +315,10 @@ def update_item(conn: sqlite3.Connection, item_id: int, data: ItemInput) -> None
         _write_relations(conn, item_id, checked.identifiers, checked.tag_names)
         refresh_search_index(conn, item_id)
         after: dict[str, Any] = item_snapshot(conn, item_id)
-        if after != before:
-            events.record(conn, 'item', item_id, 'update', before, after)
+        if after == before:
+            return False
+        events.record(conn, 'item', item_id, 'update', before, after, memo)
+    return True
 
 
 def move_item(conn: sqlite3.Connection, item_id: int, container_id: int) -> None:
@@ -343,7 +356,7 @@ def refresh_search_index(conn: sqlite3.Connection, item_id: int) -> None:
 def get_item(conn: sqlite3.Connection, item_id: int) -> ItemDetail:
     """詳細画面用に物品を返す。"""
     snapshot: dict[str, Any] = item_snapshot(conn, item_id)
-    row: sqlite3.Row = conn.execute('SELECT created_at, updated_at FROM items WHERE id = ?', (item_id,)).fetchone()
+    row: sqlite3.Row = conn.execute('SELECT created_at, updated_at, deleted_at FROM items WHERE id = ?', (item_id,)).fetchone()
     location: str = _location(conn, snapshot['container_id'])
     return ItemDetail(
         id=snapshot['id'],
@@ -362,6 +375,10 @@ def get_item(conn: sqlite3.Connection, item_id: int) -> ItemDetail:
         deleted=snapshot['deleted'],
         created_at=row['created_at'],
         updated_at=row['updated_at'],
+        status_date=snapshot['status_date'],
+        status_party=snapshot['status_party'],
+        status_note=snapshot['status_note'],
+        deleted_at=row['deleted_at'],
     )
 
 
@@ -393,6 +410,7 @@ def _summaries(conn: sqlite3.Connection, rows: list[sqlite3.Row]) -> list[ItemSu
                 status=row['status'],
                 location=paths.get(row['container_id'], '') if row['container_id'] is not None else '',
                 tags=[tag['name'] for tag in tag_rows],
+                deleted=bool(row['deleted']),
             )
         )
     return summaries
@@ -402,9 +420,9 @@ def _summaries(conn: sqlite3.Connection, rows: list[sqlite3.Row]) -> list[ItemSu
 # SQLを固定の文字列にして、条件の組み立てによるSQLインジェクションの余地をなくす。
 _SEARCH_SQL: str = """
 SELECT items.* FROM items
-WHERE items.deleted = 0
+WHERE (items.deleted = 0 OR :include_deleted = 1)
   AND items.merged_into_id IS NULL
-  AND (:statuses IS NULL OR items.status IN (SELECT value FROM json_each(:statuses)))
+  AND (:statuses IS NULL OR items.status IN (SELECT value FROM json_each(:statuses)) OR (:include_deleted = 1 AND items.deleted = 1))
   AND (:category_id IS NULL OR items.category_id = :category_id
        OR items.category_id IN (SELECT id FROM categories WHERE parent_id = :category_id))
   AND (:container_ids IS NULL OR items.container_id IN (SELECT value FROM json_each(:container_ids)))
@@ -422,9 +440,9 @@ LIMIT :limit OFFSET :offset
 
 _COUNT_SQL: str = """
 SELECT count(*) FROM items
-WHERE items.deleted = 0
+WHERE (items.deleted = 0 OR :include_deleted = 1)
   AND items.merged_into_id IS NULL
-  AND (:statuses IS NULL OR items.status IN (SELECT value FROM json_each(:statuses)))
+  AND (:statuses IS NULL OR items.status IN (SELECT value FROM json_each(:statuses)) OR (:include_deleted = 1 AND items.deleted = 1))
   AND (:category_id IS NULL OR items.category_id = :category_id
        OR items.category_id IN (SELECT id FROM categories WHERE parent_id = :category_id))
   AND (:container_ids IS NULL OR items.container_id IN (SELECT value FROM json_each(:container_ids)))
@@ -473,6 +491,7 @@ def _search_params(conn: sqlite3.Connection, query: SearchQuery) -> dict[str, An
         'tag_id': query.tag_id,
         'fts_query': fts_query,
         'like_patterns': json.dumps(like_patterns, ensure_ascii=False),
+        'include_deleted': 1 if query.include_deleted else 0,
     }
 
 
@@ -483,7 +502,10 @@ def count_items(conn: sqlite3.Connection, query: SearchQuery) -> int:
 
 
 def search_items(conn: sqlite3.Connection, query: SearchQuery, limit: int = 500, offset: int = 0) -> list[ItemSummary]:
-    """条件に合う物品を新しい順に返す。削除済み・統合済みの登録は含めない。"""
+    """条件に合う物品を新しい順に返す。統合済みの登録と、指定がなければ削除済みの登録は含めない。
+
+    削除済みの登録を含める場合、削除済みの登録には状態の絞り込みをかけない。復元する物を、削除時の状態によらず探せるようにするため。
+    """
     params: dict[str, Any] = {**_search_params(conn, query), 'limit': limit, 'offset': offset}
     rows: list[sqlite3.Row] = conn.execute(_SEARCH_SQL, params).fetchall()
     return _summaries(conn, rows)

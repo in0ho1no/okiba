@@ -3,10 +3,21 @@
 {% block title %}{{ item.name }}{% endblock %}
 {% block content %}
 <h1>{{ item.name }}</h1>
+{% if item.deleted %}
+<section class="deleted">
+  <h2>削除済みの登録</h2>
+  <p>{{ item.deleted_at }} に誤登録として削除されました。検索では「削除済みも表示」を選んだときだけ表示されます。</p>
+  <form method="post" action="/items/{{ item.id }}/restore" class="stack"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+    {% if item.status in ('stored', 'in_use', 'lent') %}{{ m.destination_select('restore', retired_destination, container_paths, errors) }}{% endif %}
+    <button type="submit">復元</button>
+  </form>
+</section>
+{% else %}
 <p class="actions">
   <a class="button" href="/items/{{ item.id }}/edit">内容の修正</a>
   <a class="button secondary" href="/items/new?copy_from={{ item.id }}">この内容で複製登録</a>
 </p>
+{% endif %}
 
 <section>
   <h2>基本情報</h2>
@@ -17,6 +28,12 @@
     <dt>状態</dt><dd><span class="status status-{{ item.status }}">{{ item.status_label }}</span></dd>
     <dt>{{ '戻し先' if item.is_return_target else '保管場所' }}</dt>
     <dd>{% if item.container_id %}<a href="/containers/{{ item.container_id }}">{{ item.location }}</a>{% else %}<span class="muted">なし</span>{% endif %}</dd>
+    {% if item.status_date %}
+      {% set record_label = '貸出' if item.status == 'lent' else release_labels.get(item.status, '') %}
+      <dt>{{ record_label }}日</dt><dd>{{ item.status_date }}</dd>
+      <dt>{{ record_label }}の相手</dt><dd>{{ item.status_party or '' }}</dd>
+      <dt>{{ record_label }}の備考</dt><dd class="pre">{{ item.status_note or '' }}</dd>
+    {% endif %}
     {% for label, value in template_values %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}
     {% for kind, value in item.identifiers.items() %}<dt>{{ IDENTIFIER_KINDS[kind] }}</dt><dd>{{ value }}</dd>{% endfor %}
     <dt>タグ</dt><dd>{{ item.tags | join('、') }}</dd>
@@ -26,6 +43,40 @@
     <h3>テンプレート外の項目</h3>
     <dl class="props">{% for label, value in extras %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>
   {% endif %}
+</section>
+
+{% if not item.deleted %}
+<section>
+  <h2>状態の変更</h2>
+  {% if item.status == 'stored' %}
+    <form method="post" action="/items/{{ item.id }}/status/take_out" class="inline-form"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+      <button type="submit">取り出す</button>
+      <span class="hint">使用中にし、この保管場所を戻し先として残します。</span>
+    </form>
+  {% elif item.status == 'in_use' %}
+    <form method="post" action="/items/{{ item.id }}/status/put_back" class="stack"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+      {{ m.destination_select('put_back', retired_destination, container_paths, errors) }}
+      <button type="submit">戻す</button>
+    </form>
+  {% elif item.status == 'lent' %}
+    <form method="post" action="/items/{{ item.id }}/status/give_back" class="stack"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+      {{ m.destination_select('give_back', retired_destination, container_paths, errors) }}
+      <button type="submit">返却</button>
+    </form>
+  {% else %}
+    <form method="post" action="/items/{{ item.id }}/status/undo_release" class="stack"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+      <p class="hint">誤って{{ release_labels[item.status] }}を記録した場合は、手放す直前の状態と保管場所に戻せます。</p>
+      {{ m.destination_select('undo_release', retired_destination, container_paths, errors) }}
+      <button type="submit" class="secondary">手放しの取消</button>
+    </form>
+  {% endif %}
+  <div class="operations">
+    {% if item.status in ('stored', 'in_use') %}{{ m.status_record_form(item, 'lend', '貸出', '貸出先', status_form, today, errors) }}{% endif %}
+    {% if item.status in ('stored', 'in_use', 'lent') %}
+      {{ m.status_record_form(item, 'sell', '売却', '売却先', status_form, today, errors) }}
+      {{ m.status_record_form(item, 'dispose', '廃棄', '相手（省略可）', status_form, today, errors) }}
+    {% endif %}
+  </div>
 </section>
 
 {% if item.status in ('stored', 'in_use', 'lent') %}
@@ -42,15 +93,33 @@
   {{ m.error(errors, 'container_id') }}
 </section>
 {% endif %}
+{% endif %}
 
 <section>
   <h2>写真</h2>
-  {{ m.photo_list(photos, item.name) }}
-  {{ m.photo_upload('/items/' ~ item.id ~ '/photos', errors) }}
+  {{ m.photo_list(photos, item.name, not item.deleted) }}
+  {% if not item.deleted %}{{ m.photo_upload('/items/' ~ item.id ~ '/photos', errors) }}{% endif %}
 </section>
 
 <section>
   <h2>変更履歴</h2>
-  {{ m.event_list(events) }}
+  {{ m.event_list(events, none if item.deleted else '/items/' ~ item.id ~ '/revert/') }}
 </section>
+
+{% if not item.deleted %}
+<section class="quiet">
+  <details{{ ' open' if status_form.get('op') == 'delete' }}>
+    <summary>誤登録削除</summary>
+    <p>誤って登録した物を消すための操作です。廃棄・売却した場合は、手放しの操作（「売却」「廃棄」）を使ってください。</p>
+    <form method="post" action="/items/{{ item.id }}/delete" class="stack"><input type="hidden" name="csrf_token" value="{{ security.csrf_token }}">
+      <div class="field">
+        <label for="delete-reason">削除理由</label>
+        <textarea id="delete-reason" name="reason" rows="2">{{ status_form.get('reason', '') if status_form.get('op') == 'delete' else '' }}</textarea>
+        {{ m.error(errors, 'delete.reason') }}
+      </div>
+      <button type="submit" class="danger">削除を確定</button>
+    </form>
+  </details>
+</section>
+{% endif %}
 {% endblock %}

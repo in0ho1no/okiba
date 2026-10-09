@@ -94,8 +94,8 @@ class TestFilters:
 
     def test_default_shows_only_owned_and_valid_items(self, conn: sqlite3.Connection, places: Places, stock: dict[str, int]) -> None:
         """前提: 売却済・貸出中・削除済み・統合済みの登録 / 操作: 既定の条件で検索する / 期待: 所持中で有効な登録だけ。売却済は絞り込みで出る。"""
-        set_status(conn, stock['novel'], 'sold', None)
-        set_status(conn, stock['readable'], 'lent', places.box_a1)
+        set_status(conn, stock['novel'], 'sold')
+        set_status(conn, stock['readable'], 'lent')
         conn.execute('UPDATE items SET deleted = 1 WHERE id = ?', (stock['usb'],))
         merged: int = items.register_item(conn, cable_input(places.box_a2))
         conn.execute('UPDATE items SET merged_into_id = ? WHERE id = ?', (stock['hdmi'], merged))
@@ -106,8 +106,8 @@ class TestFilters:
         """前提: 階層・状態・削除・統合の異なる物品 / 操作: 各条件で検索と件数取得 / 期待: 総件数と結果件数が一致する。"""
         novels: int = catalog.create_category(conn, '小説', BOOKS_ID)
         items.register_item(conn, book_input(places.box_a1, title='新しい小説', isbn='', category_id=novels))
-        set_status(conn, stock['novel'], 'sold', None)
-        set_status(conn, stock['readable'], 'lent', places.box_a1)
+        set_status(conn, stock['novel'], 'sold')
+        set_status(conn, stock['readable'], 'lent')
         conn.execute('UPDATE items SET deleted = 1 WHERE id = ?', (stock['usb'],))
         merged: int = items.register_item(conn, cable_input(places.box_a2))
         conn.execute('UPDATE items SET merged_into_id = ? WHERE id = ?', (stock['hdmi'], merged))
@@ -136,7 +136,7 @@ class TestFilters:
 
     def test_location_marks_return_destination(self, conn: sqlite3.Connection, places: Places, stock: dict[str, int]) -> None:
         """前提: 貸出中の書籍 / 操作: 検索する / 期待: 所在が戻し先として扱われ、保管場所の階層で表示される。"""
-        set_status(conn, stock['readable'], 'lent', places.box_a1)
+        set_status(conn, stock['readable'], 'lent')
         summary: items.ItemSummary = next(s for s in items.search_items(conn, SearchQuery(text='リーダブル')))
         assert summary.is_return_target
         assert summary.location == '書斎 › 本棚 › 上段 › 箱 [A-01]'

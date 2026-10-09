@@ -6,6 +6,7 @@
 import re
 import sqlite3
 from html import unescape
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -13,6 +14,7 @@ from fastapi.testclient import TestClient
 from httpx2 import Response
 
 from okiba import items
+from okiba.backup import WriteGate
 from okiba.config import Settings
 from okiba.web.app import create_app
 from okiba.web.csrf import COOKIE_NAME as CSRF_COOKIE
@@ -62,7 +64,7 @@ def _item_id(response: Response) -> str:
 
 
 class TestPages:
-    @pytest.mark.parametrize('url', ['/', '/items/new', '/manage', '/categories', f'/categories/{BOOKS_ID}', '/tags', '/containers'])
+    @pytest.mark.parametrize('url', ['/', '/items/new', '/manage', '/categories', f'/categories/{BOOKS_ID}', '/tags', '/containers', '/backup'])
     def test_pages_render(self, client: TestClient, url: str) -> None:
         """前提: 初期状態 / 操作: 各画面を開く / 期待: 表示できる。"""
         assert client.get(url).status_code == 200
@@ -323,6 +325,131 @@ class TestManageFlow:
         assert '同じ名前のタグが既にあります' in response.text
 
 
+class TestStatusFlow:
+    def test_lend_sell_and_undo(self, client: TestClient, box: str) -> None:
+        """前提: 箱A-01のケーブル / 操作: 貸し出し、売却し、手放しを取り消す / 期待: 各段階の状態と貸出の情報が表示され、取消で貸出中に戻る。"""
+        item_id: str = _item_id(_post(client, '/items/new', _cable_form(box)))
+        response: Response = _post(client, f'/items/{item_id}/status/lend', {'date': '2026-10-01', 'party': '佐藤さん', 'note': '年末に返却'})
+        assert '貸出を記録しました' in response.text
+        assert '<dt>貸出の相手</dt><dd>佐藤さん</dd>' in response.text
+        response = _post(client, f'/items/{item_id}/status/sell', {'date': '2026-10-05', 'party': '中古店', 'note': ''})
+        assert '<span class="status status-sold">売却済</span>' in response.text
+        assert '手放しの取消' in response.text
+        response = _post(client, f'/items/{item_id}/status/undo_release', {})
+        assert '手放しを取り消しました' in response.text
+        assert '<dt>貸出の相手</dt><dd>佐藤さん</dd>' in response.text
+        assert '<dt>戻し先</dt>' in response.text
+
+    def test_take_out_and_put_back(self, client: TestClient, box: str) -> None:
+        """前提: 箱A-01のケーブル / 操作: 取り出してから戻す / 期待: 使用中を経て保管中に戻る。"""
+        item_id: str = _item_id(_post(client, '/items/new', _cable_form(box)))
+        assert '<span class="status status-in_use">使用中</span>' in _post(client, f'/items/{item_id}/status/take_out', {}).text
+        assert '<span class="status status-stored">保管中</span>' in _post(client, f'/items/{item_id}/status/put_back', {}).text
+
+    def test_lend_error_keeps_input_open(self, client: TestClient, box: str) -> None:
+        """前提: 箱A-01のケーブル / 操作: 貸出先を空にして貸し出す / 期待: 貸出の入力欄が開いたままエラーが出て、備考は残る。"""
+        item_id: str = _item_id(_post(client, '/items/new', _cable_form(box)))
+        response: Response = _post(client, f'/items/{item_id}/status/lend', {'date': '2026-10-01', 'party': '', 'note': '年末に返却'})
+        assert response.status_code == 422
+        assert '相手を入力してください' in response.text
+        assert re.search(r'<details class="operation" open>\s*<summary>貸出</summary>', response.text)
+        assert '年末に返却</textarea>' in response.text
+
+    def test_wrong_operation_shows_message(self, client: TestClient, box: str) -> None:
+        """前提: 保管中のケーブル / 操作: 返却を送る・存在しない操作を送る / 期待: 状態に合わない旨の表示と、見つからない画面になる。"""
+        item_id: str = _item_id(_post(client, '/items/new', _cable_form(box)))
+        response: Response = _post(client, f'/items/{item_id}/status/give_back', {})
+        assert response.status_code == 422
+        assert '保管中の物は返却できません' in response.text
+        assert _post(client, f'/items/{item_id}/status/explode', {}).status_code == 404
+
+    def test_delete_and_restore(self, client: TestClient, box: str) -> None:
+        """前提: ケーブル / 操作: 理由なし・理由付きで削除し、削除済みを探して復元 / 期待: 理由なしは拒否、削除後は検索に出ず、復元で戻る。"""
+        item_id: str = _item_id(_post(client, '/items/new', _cable_form(box)))
+        response: Response = _post(client, f'/items/{item_id}/delete', {'reason': ''})
+        assert response.status_code == 422
+        assert '削除理由を入力してください' in response.text
+        response = _post(client, f'/items/{item_id}/delete', {'reason': '二重登録'})
+        assert '削除済みの登録' in response.text
+        assert f'action="/items/{item_id}/status/' not in response.text
+        assert 'HDMI - DisplayPort' not in client.get('/', params={'q': 'HDMI'}).text
+        found: str = client.get('/', params={'q': 'HDMI', 'searched': '1', 'status': 'stored', 'deleted': '1'}).text
+        assert '<span class="badge">削除済み</span>' in found
+        response = _post(client, f'/items/{item_id}/restore', {})
+        assert '復元しました' in response.text
+        assert 'HDMI - DisplayPort' in client.get('/', params={'q': 'HDMI'}).text
+
+    def test_photos_of_deleted_item_are_read_only(self, client: TestClient, box: str) -> None:
+        """前提: 写真付きのケーブル / 操作: 削除してから詳細を開き、用途変更を送る / 期待: 写真の変更フォームは出ず、送信は拒否される。"""
+        item_id: str = _item_id(_post(client, '/items/new', _cable_form(box)))
+        _post(client, f'/items/{item_id}/photos', {'photo_purpose': '正面'}, files=[('photos', ('a.jpg', image_bytes(), 'image/jpeg'))])
+        photo_id: str = re.findall(r'/photos/(\d+)/purpose', client.get(f'/items/{item_id}').text)[0]
+        detail: str = _post(client, f'/items/{item_id}/delete', {'reason': '誤登録'}).text
+        assert '/photos/' + photo_id + '/purpose' not in detail
+        assert '/photos/' + photo_id + '/detach' not in detail
+        response: Response = _post(client, f'/photos/{photo_id}/purpose', {'purpose': '裏面'})
+        assert response.status_code == 422
+        assert '削除済みの登録の写真は変更できません' in response.text
+
+    def test_revert_from_history(self, client: TestClient, box: str) -> None:
+        """前提: 備考を上書きしたケーブル / 操作: 履歴から上書き前の差分を確認して差し戻す / 期待: 差分が表示され、備考が元に戻る。"""
+        item_id: str = _item_id(_post(client, '/items/new', _cable_form(box, note='モニター用')))
+        _post(
+            client,
+            f'/items/{item_id}/edit',
+            {**_cable_form(box), 'name': 'HDMI - DisplayPort 1.8m', 'note': '', 'prev_category_id': str(CABLES_ID)},
+        )
+        detail: str = client.get(f'/items/{item_id}').text
+        revert_url: str = re.findall(r'href="(/items/\d+/revert/\d+)"', detail)[0]
+        page: Response = client.get(revert_url)
+        assert '<td>備考</td><td class="pre"></td><td class="pre">モニター用</td>' in page.text
+        assert f'name="{CSRF_FIELD}" value="{client.cookies[CSRF_COOKIE]}"' in page.text
+        response: Response = _post(client, revert_url, {})
+        assert '履歴から差し戻しました' in response.text
+        assert '<dt>備考</dt><dd class="pre">モニター用</dd>' in response.text
+
+
+class TestBackupFlow:
+    def test_backup_is_written(self, client: TestClient, box: str, tmp_path: Path) -> None:
+        """前提: ケーブル1件 / 操作: 出力先を指定してバックアップする / 期待: 作成結果が表示され、zipができる。"""
+        _post(client, '/items/new', _cable_form(box))
+        destination: Path = tmp_path / 'backups'
+        destination.mkdir()
+        response: Response = _post(client, '/backup', {'destination': str(destination)})
+        assert response.status_code == 200
+        assert 'バックアップを作成しました' in response.text
+        assert len(list(destination.glob('okiba-backup-*.zip'))) == 1
+
+    def test_incomplete_backup_is_distinguished(self, client: TestClient, settings: Settings, box: str, tmp_path: Path) -> None:
+        """前提: 元画像が壊れ、閲覧用画像もない写真 / 操作: バックアップする / 期待: 成功ではなく不完全なバックアップと表示される。"""
+        _post(client, '/items/new', _cable_form(box), files=[('photos', ('a.jpg', image_bytes(), 'image/jpeg'))])
+        original: Path = next((settings.photos_dir / 'originals').rglob('*.jpg'))
+        original.write_bytes(original.read_bytes()[:200])
+        next((settings.photos_dir / 'display').rglob('*.jpg')).unlink()
+        destination: Path = tmp_path / 'backups'
+        destination.mkdir()
+        response: Response = _post(client, '/backup', {'destination': str(destination)})
+        assert '不完全なバックアップです' in response.text
+        assert 'バックアップを作成しました' not in response.text
+        assert len(list(destination.glob('okiba-backup-*-incomplete.zip'))) == 1
+
+    def test_backup_destination_error(self, client: TestClient) -> None:
+        """前提: なし / 操作: 相対パスを出力先にする / 期待: 入力エラーが表示される。"""
+        response: Response = _post(client, '/backup', {'destination': 'backups'})
+        assert response.status_code == 422
+        assert '絶対パスで入力してください' in response.text
+
+    def test_updates_pause_while_backing_up(self, client: TestClient) -> None:
+        """前提: バックアップ中 / 操作: タグを作成し、検索画面を開く / 期待: 更新は503で断られ、閲覧はできる。"""
+        gate: WriteGate = client.app.state.write_gate  # type: ignore[attr-defined]
+        with gate.backup():
+            response: Response = _post(client, '/tags', {'name': '新しいタグ'})
+            assert response.status_code == 503
+            assert 'バックアップ中です' in response.text
+            assert client.get('/').status_code == 200
+        assert _post(client, '/tags', {'name': '新しいタグ'}).status_code == 200
+
+
 class TestCsrf:
     def _tag_count(self, client: TestClient) -> int:
         return len(re.findall(r'action="/tags/(\d+)/rename"', client.get('/tags').text))
@@ -374,7 +501,7 @@ class TestCsrf:
             )
 
     @pytest.mark.parametrize(
-        'url', ['/items/new', '/items/{id}', '/categories', f'/categories/{CABLES_ID}', '/tags', '/containers', '/containers/{id}']
+        'url', ['/items/new', '/items/{id}', '/categories', f'/categories/{CABLES_ID}', '/tags', '/containers', '/containers/{id}', '/backup']
     )
     def test_every_post_form_carries_token(self, client: TestClient, box: str, url: str) -> None:
         """前提: 保管場所と写真付き物品 / 操作: フォームのある画面を開く / 期待: POSTフォームすべてにトークンがある。"""
